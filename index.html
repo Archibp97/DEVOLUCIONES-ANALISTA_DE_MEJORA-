@@ -452,7 +452,7 @@ const CONFIG = {
 };
 /* ========================================================================= */
 
-const supabase = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+const sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 if (window.emailjs) emailjs.init({ publicKey: CONFIG.EMAILJS_PUBLIC_KEY });
 
 let pendingPhotoFile = null;
@@ -499,7 +499,7 @@ document.querySelectorAll('.modal-overlay').forEach(ov => {
 
 /* ---------- Autenticación ---------- */
 async function checkSession(){
-  const { data } = await supabase.auth.getSession();
+  const { data } = await sb.auth.getSession();
   if (data.session) {
     showApp();
   } else {
@@ -515,7 +515,7 @@ document.getElementById('login-btn').addEventListener('click', async () => {
   if (!password) return;
   const btn = document.getElementById('login-btn');
   btn.disabled = true; btn.textContent = 'Ingresando…';
-  const { error } = await supabase.auth.signInWithPassword({ email: CONFIG.LOGIN_EMAIL, password });
+  const { error } = await sb.auth.signInWithPassword({ email: CONFIG.LOGIN_EMAIL, password });
   btn.disabled = false; btn.textContent = 'Ingresar';
   if (error) {
     errEl.textContent = 'Contraseña incorrecta. Intenta de nuevo.';
@@ -529,7 +529,7 @@ document.getElementById('login-password').addEventListener('keydown', (e) => {
 });
 
 document.getElementById('logout-btn').addEventListener('click', async () => {
-  await supabase.auth.signOut();
+  await sb.auth.signOut();
   location.reload();
 });
 
@@ -597,11 +597,11 @@ document.getElementById('submit-add').addEventListener('click', async () => {
     if (pendingPhotoFile) {
       const ext = pendingPhotoFile.name.split('.').pop();
       const path = `${item}_${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
+      const { error: upErr } = await sb.storage
         .from(CONFIG.STORAGE_BUCKET)
         .upload(path, pendingPhotoFile);
       if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from(CONFIG.STORAGE_BUCKET).getPublicUrl(path);
+      const { data: pub } = sb.storage.from(CONFIG.STORAGE_BUCKET).getPublicUrl(path);
       fotoUrl = pub.publicUrl;
     }
 
