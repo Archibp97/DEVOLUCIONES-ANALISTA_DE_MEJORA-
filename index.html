@@ -293,13 +293,16 @@
     font-size:20px;
     line-height:1;
   }
-  .thumb-preview{
-    margin-top:8px;
-    max-width:100%;
-    max-height:140px;
-    border-radius:4px;
+  .thumb-preview-grid{
+    display:flex;
+    gap:8px;
+    margin-top:10px;
+  }
+  .thumb-preview-grid img{
+    width:72px;height:72px;
+    object-fit:cover;
+    border-radius:5px;
     border:1px solid var(--line);
-    display:none;
   }
   .query-results{margin-top:18px;border-top:1px solid var(--line);padding-top:14px;}
   .query-result-item{
@@ -448,9 +451,9 @@
       <input type="number" step="0.01" id="f-ancho" placeholder="Ej. 2.80" />
     </div>
     <div class="field">
-      <label for="f-foto">Evidencia fotográfica</label>
-      <input type="file" id="f-foto" accept="image/*" />
-      <img id="f-foto-preview" class="thumb-preview" />
+      <label for="f-foto">Evidencia fotográfica (máximo 3 fotos)</label>
+      <input type="file" id="f-foto" accept="image/*" multiple />
+      <div id="f-foto-previews" class="thumb-preview-grid"></div>
     </div>
     <p class="error-text" id="add-error" style="display:none;"></p>
     <button class="btn btn-block" id="submit-add">Guardar devolución</button>
@@ -494,7 +497,7 @@ const CONFIG = {
 const sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 if (window.emailjs) emailjs.init({ publicKey: CONFIG.EMAILJS_PUBLIC_KEY });
 
-let pendingPhotoFile = null;
+let pendingPhotoFiles = []; // hasta 3 archivos
 let catalogo = []; // [{ item, tela }] — catálogo de referencia, nunca restringe lo que se puede digitar
 
 /* ---------- Catálogo item ↔ tela (autocompletado, no restrictivo) ---------- */
@@ -633,22 +636,31 @@ document.getElementById('open-add-modal').addEventListener('click', () => {
   document.getElementById('f-tela').value = '';
   document.getElementById('f-ancho').value = '';
   document.getElementById('f-foto').value = '';
-  document.getElementById('f-foto-preview').style.display = 'none';
+  document.getElementById('f-foto-previews').innerHTML = '';
   document.getElementById('add-error').style.display = 'none';
-  pendingPhotoFile = null;
+  pendingPhotoFiles = [];
   openModal('add-modal-overlay');
 });
 
 document.getElementById('f-foto').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  pendingPhotoFile = file || null;
-  const preview = document.getElementById('f-foto-preview');
-  if (file) {
-    preview.src = URL.createObjectURL(file);
-    preview.style.display = 'block';
+  const files = Array.from(e.target.files || []);
+  const errEl = document.getElementById('add-error');
+  const preview = document.getElementById('f-foto-previews');
+
+  if (files.length > 3) {
+    errEl.textContent = 'Máximo 3 fotos. Se tomaron solo las primeras 3.';
+    errEl.style.display = 'block';
   } else {
-    preview.style.display = 'none';
+    errEl.style.display = 'none';
   }
+
+  pendingPhotoFiles = files.slice(0, 3);
+  preview.innerHTML = '';
+  pendingPhotoFiles.forEach(file => {
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(file);
+    preview.appendChild(img);
+  });
 });
 
 document.getElementById('submit-add').addEventListener('click', async () => {
@@ -668,21 +680,22 @@ document.getElementById('submit-add').addEventListener('click', async () => {
   btn.disabled = true; btn.textContent = 'Guardando…';
 
   try {
-    let fotoUrl = null;
-    if (pendingPhotoFile) {
-      const ext = pendingPhotoFile.name.split('.').pop();
-      const path = `${item}_${Date.now()}.${ext}`;
+    const fotoUrls = [];
+    for (let i = 0; i < pendingPhotoFiles.length; i++) {
+      const file = pendingPhotoFiles[i];
+      const ext = file.name.split('.').pop();
+      const path = `${item}_${Date.now()}_${i}.${ext}`;
       const { error: upErr } = await sb.storage
         .from(CONFIG.STORAGE_BUCKET)
-        .upload(path, pendingPhotoFile);
+        .upload(path, file);
       if (upErr) throw upErr;
       const { data: pub } = sb.storage.from(CONFIG.STORAGE_BUCKET).getPublicUrl(path);
-      fotoUrl = pub.publicUrl;
+      fotoUrls.push(pub.publicUrl);
     }
 
     const { data: inserted, error: insErr } = await sb
       .from('devoluciones')
-      .insert({ item, tela, ancho: parseFloat(ancho), foto_url: fotoUrl, estado: 'pendiente' })
+      .insert({ item, tela, ancho: parseFloat(ancho), foto_urls: fotoUrls, estado: 'pendiente' })
       .select()
       .single();
     if (insErr) throw insErr;
@@ -777,7 +790,7 @@ async function loadPendientes(){
       <td>${escapeHtml(row.item)}</td>
       <td>${escapeHtml(row.tela)}</td>
       <td>${row.ancho} m</td>
-      <td>${row.foto_url ? `<a href="${row.foto_url}" target="_blank" rel="noopener">Ver foto</a>` : '—'}</td>
+      <td>${renderFotos(row)}</td>
       <td>${formatDateTime(row.fecha_registro)}</td>
       <td>
         <label class="check-cell">
@@ -851,7 +864,7 @@ async function loadHistorial(){
       <td>${formatDateTime(row.fecha_registro)}</td>
       <td>${row.fecha_ejecucion ? formatDateTime(row.fecha_ejecucion) : '—'}</td>
       <td>${formatDuration(row.fecha_registro, row.fecha_ejecucion)}</td>
-      <td>${row.foto_url ? `<a href="${row.foto_url}" target="_blank" rel="noopener">Ver foto</a>` : '—'}</td>
+      <td>${renderFotos(row)}</td>
     </tr>
   `).join('');
 }
@@ -877,6 +890,14 @@ async function sendNotification(rows, manual){
 }
 
 /* ---------- Helpers ---------- */
+function renderFotos(row){
+  const urls = (row.foto_urls && row.foto_urls.length) ? row.foto_urls : (row.foto_url ? [row.foto_url] : []);
+  if (!urls.length) return '—';
+  return urls.map((u, i) =>
+    `<a href="${u}" target="_blank" rel="noopener">Foto ${i + 1}</a>`
+  ).join(' · ');
+}
+
 function escapeHtml(str){
   return String(str)
     .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
