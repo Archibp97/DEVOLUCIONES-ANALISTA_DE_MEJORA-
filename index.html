@@ -605,7 +605,7 @@ document.getElementById('submit-add').addEventListener('click', async () => {
       fotoUrl = pub.publicUrl;
     }
 
-    const { data: inserted, error: insErr } = await supabase
+    const { data: inserted, error: insErr } = await sb
       .from('devoluciones')
       .insert({ item, tela, ancho: parseFloat(ancho), foto_url: fotoUrl, estado: 'pendiente' })
       .select()
@@ -642,7 +642,7 @@ document.getElementById('submit-query').addEventListener('click', async () => {
   if (!q) { resultsEl.innerHTML = '<p class="helper-text">Escribe un item o una tela para buscar.</p>'; return; }
   resultsEl.innerHTML = '<p class="loading-text">Buscando…</p>';
 
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('devoluciones')
     .select('*')
     .or(`item.ilike.%${q}%,tela.ilike.%${q}%`)
@@ -676,7 +676,7 @@ async function loadPendientes(){
   const tbody = document.getElementById('pendientes-tbody');
   tbody.innerHTML = '<tr><td colspan="6" class="loading-text">Cargando…</td></tr>';
 
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('devoluciones')
     .select('*')
     .eq('estado', 'pendiente')
@@ -718,7 +718,7 @@ async function loadPendientes(){
       if (!e.target.checked) return;
       e.target.disabled = true;
       const id = e.target.dataset.id;
-      const { error } = await supabase
+      const { error } = await sb
         .from('devoluciones')
         .update({ estado: 'ejecutado', fecha_ejecucion: new Date().toISOString() })
         .eq('id', id);
@@ -736,7 +736,7 @@ async function loadPendientes(){
 }
 
 document.getElementById('notify-btn').addEventListener('click', async () => {
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('devoluciones')
     .select('*')
     .eq('estado', 'pendiente')
@@ -751,7 +751,7 @@ async function loadHistorial(){
   const tbody = document.getElementById('historial-tbody');
   tbody.innerHTML = '<tr><td colspan="8" class="loading-text">Cargando…</td></tr>';
 
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('devoluciones')
     .select('*')
     .order('fecha_registro', { ascending: false });
