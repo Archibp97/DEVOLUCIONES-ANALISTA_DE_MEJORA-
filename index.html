@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>PANORAMA S.A.S - DEVOLUCIONES</title>
+<title>Panorama · Trazabilidad de Devoluciones</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -340,8 +340,8 @@
 <div id="login-screen">
   <div class="login-box">
     <div class="login-mark">P</div>
-    <h1>PANORAMA S.A.S</h1>
-    <p class="login-sub">Acceso restringido</p>
+    <h1>Panorama</h1>
+    <p class="login-sub">Trazabilidad de devoluciones · acceso restringido</p>
     <div class="field">
       <label for="login-password">Contraseña del equipo</label>
       <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" />
@@ -399,7 +399,7 @@
         <table class="ledger">
           <thead>
             <tr>
-              <th>Item</th><th>Tela</th><th>Ancho</th><th>Evidencia</th><th>Registrado</th><th>Traslado</th>
+              <th>Item</th><th>Tela</th><th>Ancho</th><th>Evidencia</th><th>Registrado</th><th>Ejecutado</th>
             </tr>
           </thead>
           <tbody id="pendientes-tbody">
@@ -412,7 +412,7 @@
     <!-- ---------- TAB 3: HISTORIAL ---------- -->
     <section class="tab-panel" id="panel-historial">
       <div class="section-head">
-        <h2>Historial completo</h2>
+        <h2>Historial completo (solo lectura)</h2>
       </div>
       <div class="ledger-wrap">
         <table class="ledger">
@@ -485,9 +485,9 @@ const CONFIG = {
   SUPABASE_URL: "https://nyijgrqhmgcuupiuncmz.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55aWpncnFobWdjdXVwaXVuY216Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5NjE3NDcsImV4cCI6MjEwNDUzNzc0N30.yCZxm7VMXbEleKGvasjqAoDdga_Y0l-H_4FCUO1FtiI",
   LOGIN_EMAIL: "equipo@persianaspanorama.co", // usuario único creado en Supabase Auth
-  EMAILJS_PUBLIC_KEY: "TU_EMAILJS_PUBLIC_KEY",
-  EMAILJS_SERVICE_ID: "TU_EMAILJS_SERVICE_ID",
-  EMAILJS_TEMPLATE_ID: "TU_EMAILJS_TEMPLATE_ID",
+  EMAILJS_PUBLIC_KEY: "PjnJ9wLBspUM_Y8_9",
+  EMAILJS_SERVICE_ID: "service_ypwzko4",
+  EMAILJS_TEMPLATE_ID: "a1aswos",
   ALMACEN_EMAIL: "almacen@persianaspanorama.co",
   STORAGE_BUCKET: "evidencias",
   CATALOGO_TABLE: "catalogo_telas"
