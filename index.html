@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Panorama · Trazabilidad de Devoluciones</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<style>
+  :root{
+    --bg:#F6F4EF;
+    --surface:#FFFFFF;
+    --ink:#262322;
+    --ink-soft:#6B6459;
+    --line:#DCD6CB;
+    --accent:#3C5A73;
+    --accent-dark:#2C4457;
+    --accent-ink:#FFFFFF;
+    --warn:#B5652B;
+    --warn-bg:#F3E4D6;
+    --ok:#4B7355;
+    --ok-bg:#E4EBE0;
+    --danger:#A6432D;
+    --danger-bg:#F4E1DC;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{
+    font-family:'Source Serif 4',serif;
+    font-weight:600;
+    margin:0;
+  }
+  button{font-family:inherit;cursor:pointer;}
+  input,select{font-family:inherit;}
+
+  /* ---------- Login ---------- */
+  #login-screen{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+  }
+  .login-box{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:40px 36px;
+    width:100%;
+    max-width:360px;
+  }
+  .login-box h1{font-size:22px;margin-bottom:4px;}
+  .login-sub{color:var(--ink-soft);font-size:14px;margin-bottom:28px;}
+  .field{margin-bottom:16px;}
+  .field label{
+    display:block;
+    font-size:13px;
+    color:var(--ink-soft);
+    margin-bottom:6px;
+  }
+  .field input, .field select, .field textarea{
+    width:100%;
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:4px;
+    font-size:15px;
+    background:var(--surface);
+    color:var(--ink);
+  }
+  .field input:focus, .field select:focus, .field textarea:focus{
+    outline:2px solid var(--accent);
+    outline-offset:1px;
+    border-color:var(--accent);
+  }
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    border:1px solid var(--accent);
+    background:var(--accent);
+    color:var(--accent-ink);
+    padding:10px 18px;
+    border-radius:4px;
+    font-size:14px;
+    font-weight:600;
+    transition:background .15s ease;
+  }
+  .btn:hover{background:var(--accent-dark);}
+  .btn:disabled{opacity:.55;cursor:not-allowed;}
+  .btn-block{width:100%;}
+  .btn-ghost{
+    background:transparent;
+    color:var(--accent);
+  }
+  .btn-ghost:hover{background:#EAF0F4;}
+  .btn-small{padding:6px 12px;font-size:13px;}
+  .error-text{color:var(--danger);font-size:13px;margin-top:6px;}
+
+  /* ---------- App shell ---------- */
+  #app{display:none;min-height:100vh;}
+  header.topbar{
+    background:var(--surface);
+    border-bottom:1px solid var(--line);
+    padding:18px 28px;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .brand{display:flex;align-items:baseline;gap:10px;}
+  .brand h1{font-size:19px;}
+  .brand span{color:var(--ink-soft);font-size:13px;}
+  #logout-btn{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--ink-soft);
+    padding:7px 14px;
+    border-radius:4px;
+    font-size:13px;
+  }
+  #logout-btn:hover{border-color:var(--ink-soft);color:var(--ink);}
+
+  nav.tabs{
+    display:flex;
+    gap:4px;
+    padding:0 28px;
+    background:var(--surface);
+    border-bottom:1px solid var(--line);
+  }
+  nav.tabs button{
+    background:none;
+    border:none;
+    padding:14px 6px;
+    margin-right:24px;
+    font-size:15px;
+    color:var(--ink-soft);
+    border-bottom:2px solid transparent;
+    font-weight:500;
+  }
+  nav.tabs button.active{
+    color:var(--ink);
+    border-bottom-color:var(--accent);
+    font-weight:600;
+  }
+
+  main{padding:32px 28px 60px;max-width:1080px;margin:0 auto;}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  /* Tab 1 */
+  .action-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:18px;
+    margin-bottom:8px;
+  }
+  @media (max-width:640px){.action-grid{grid-template-columns:1fr;}}
+  .action-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:26px;
+    text-align:left;
+  }
+  .action-card h2{font-size:18px;margin-bottom:6px;}
+  .action-card p{color:var(--ink-soft);font-size:14px;margin:0 0 18px;line-height:1.5;}
+
+  /* Section headers */
+  .section-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:12px;
+    margin-bottom:16px;
+  }
+  .section-head h2{font-size:19px;}
+  .badge{
+    display:inline-block;
+    font-size:12px;
+    font-weight:600;
+    padding:3px 10px;
+    border-radius:100px;
+  }
+  .badge-warn{background:var(--warn-bg);color:var(--warn);}
+  .badge-ok{background:var(--ok-bg);color:var(--ok);}
+
+  /* Ledger table */
+  .ledger-wrap{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:6px;
+    overflow-x:auto;
+  }
+  table.ledger{
+    width:100%;
+    border-collapse:collapse;
+    font-size:14px;
+    min-width:680px;
+  }
+  table.ledger th{
+    text-align:left;
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    color:var(--ink-soft);
+    font-weight:600;
+    padding:12px 16px;
+    border-bottom:1px solid var(--line);
+    background:#FAF9F6;
+  }
+  table.ledger td{
+    padding:13px 16px;
+    border-bottom:1px solid var(--line);
+    vertical-align:middle;
+  }
+  table.ledger tr:last-child td{border-bottom:none;}
+  table.ledger a{color:var(--accent);}
+  .empty-row td{text-align:center;color:var(--ink-soft);padding:32px 16px;}
+  .status-pill{font-size:12px;font-weight:600;padding:3px 10px;border-radius:100px;}
+  .status-pendiente{background:var(--warn-bg);color:var(--warn);}
+  .status-ejecutado{background:var(--ok-bg);color:var(--ok);}
+  .check-cell{display:flex;align-items:center;gap:8px;}
+  .check-cell input[type=checkbox]{width:17px;height:17px;accent-color:var(--ok);}
+
+  /* Modal */
+  .modal-overlay{
+    display:none;
+    position:fixed;inset:0;
+    background:rgba(38,35,34,.45);
+    align-items:flex-start;
+    justify-content:center;
+    padding:40px 16px;
+    overflow-y:auto;
+    z-index:50;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:var(--surface);
+    border-radius:8px;
+    width:100%;
+    max-width:460px;
+    padding:28px;
+  }
+  .modal h2{font-size:19px;margin-bottom:18px;}
+  .modal-close{
+    float:right;
+    background:none;border:none;
+    color:var(--ink-soft);
+    font-size:20px;
+    line-height:1;
+  }
+  .thumb-preview{
+    margin-top:8px;
+    max-width:100%;
+    max-height:140px;
+    border-radius:4px;
+    border:1px solid var(--line);
+    display:none;
+  }
+  .query-results{margin-top:18px;border-top:1px solid var(--line);padding-top:14px;}
+  .query-result-item{
+    padding:12px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .query-result-item:last-child{border-bottom:none;}
+  .query-result-item .qr-top{display:flex;justify-content:space-between;font-weight:600;font-size:14px;}
+  .query-result-item .qr-meta{color:var(--ink-soft);font-size:13px;margin-top:3px;}
+
+  /* Toast */
+  #toast{
+    position:fixed;
+    bottom:24px;right:24px;
+    background:var(--ink);
+    color:#fff;
+    padding:12px 18px;
+    border-radius:5px;
+    font-size:14px;
+    max-width:320px;
+    box-shadow:0 4px 14px rgba(0,0,0,.18);
+    display:none;
+    z-index:100;
+  }
+  #toast.toast-error{background:var(--danger);}
+  #toast.toast-ok{background:var(--ok);}
+
+  .helper-text{color:var(--ink-soft);font-size:13px;margin-top:-4px;margin-bottom:18px;}
+  .loading-text{color:var(--ink-soft);font-size:14px;padding:20px;}
+</style>
+</head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>Panorama</h1>
+    <p class="login-sub">Trazabilidad de devoluciones · acceso restringido</p>
+    <div class="field">
+      <label for="login-password">Contraseña del equipo</label>
+      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <button class="btn btn-block" id="login-btn">Ingresar</button>
+    <p class="error-text" id="login-error" style="display:none;"></p>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <h1>Panorama</h1>
+      <span>Trazabilidad de devoluciones</span>
+    </div>
+    <button id="logout-btn">Cerrar sesión</button>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="registro">Registro</button>
+    <button class="tab-btn" data-tab="pendientes">Pendientes</button>
+    <button class="tab-btn" data-tab="historial">Historial</button>
+  </nav>
+
+  <main>
+
+    <!-- ---------- TAB 1: REGISTRO ---------- -->
+    <section class="tab-panel active" id="panel-registro">
+      <div class="action-grid">
+        <div class="action-card">
+          <h2>Agregar devolución</h2>
+          <p>Registra un rollo devuelto con su item, tela, ancho y evidencia fotográfica. Queda con fecha y hora exactas.</p>
+          <button class="btn" id="open-add-modal">+ Agregar devolución</button>
+        </div>
+        <div class="action-card">
+          <h2>Consultar estado</h2>
+          <p>Busca por número de item o por nombre de tela y revisa si está pendiente por mover a bodega o ya fue ejecutado.</p>
+          <button class="btn btn-ghost" id="open-query-modal" style="border:1px solid var(--accent);">Consultar estado</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- TAB 2: PENDIENTES ---------- -->
+    <section class="tab-panel" id="panel-pendientes">
+      <div class="section-head">
+        <h2>Pendientes por mover a bodega de devoluciones</h2>
+        <button class="btn btn-small btn-ghost" id="notify-btn" style="border:1px solid var(--accent);">Enviar recordatorio por correo</button>
+      </div>
+      <p class="helper-text" id="pendientes-count-text"></p>
+      <div class="ledger-wrap">
+        <table class="ledger">
+          <thead>
+            <tr>
+              <th>Item</th><th>Tela</th><th>Ancho</th><th>Evidencia</th><th>Registrado</th><th>Ejecutado</th>
+            </tr>
+          </thead>
+          <tbody id="pendientes-tbody">
+            <tr><td colspan="6" class="loading-text">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ---------- TAB 3: HISTORIAL ---------- -->
+    <section class="tab-panel" id="panel-historial">
+      <div class="section-head">
+        <h2>Historial completo (solo lectura)</h2>
+      </div>
+      <div class="ledger-wrap">
+        <table class="ledger">
+          <thead>
+            <tr>
+              <th>Item</th><th>Tela</th><th>Ancho</th><th>Estado</th><th>Registrado</th><th>Ejecutado</th><th>Tiempo</th><th>Evidencia</th>
+            </tr>
+          </thead>
+          <tbody id="historial-tbody">
+            <tr><td colspan="8" class="loading-text">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ===================== MODAL: AGREGAR ===================== -->
+<div class="modal-overlay" id="add-modal-overlay">
+  <div class="modal">
+    <button class="modal-close" data-close="add-modal-overlay">&times;</button>
+    <h2>Agregar devolución</h2>
+    <div class="field">
+      <label for="f-item">Item (número)</label>
+      <input type="text" id="f-item" inputmode="numeric" placeholder="Ej. 10234" />
+    </div>
+    <div class="field">
+      <label for="f-tela">Nombre de la tela</label>
+      <input type="text" id="f-tela" placeholder="Ej. Blackout Lino Gris" />
+    </div>
+    <div class="field">
+      <label for="f-ancho">Ancho (m)</label>
+      <input type="number" step="0.01" id="f-ancho" placeholder="Ej. 2.80" />
+    </div>
+    <div class="field">
+      <label for="f-foto">Evidencia fotográfica</label>
+      <input type="file" id="f-foto" accept="image/*" />
+      <img id="f-foto-preview" class="thumb-preview" />
+    </div>
+    <p class="error-text" id="add-error" style="display:none;"></p>
+    <button class="btn btn-block" id="submit-add">Guardar devolución</button>
+  </div>
+</div>
+
+<!-- ===================== MODAL: CONSULTAR ===================== -->
+<div class="modal-overlay" id="query-modal-overlay">
+  <div class="modal">
+    <button class="modal-close" data-close="query-modal-overlay">&times;</button>
+    <h2>Consultar estado</h2>
+    <div class="field">
+      <label for="f-query">Item o nombre de tela</label>
+      <input type="text" id="f-query" placeholder="Ej. 10234 o Blackout Lino" />
+    </div>
+    <button class="btn" id="submit-query">Buscar</button>
+    <div class="query-results" id="query-results"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* =========================================================================
+   CONFIGURACIÓN — reemplaza estos valores antes de publicar el sitio.
+   Instrucciones completas en README.md
+   ========================================================================= */
+const CONFIG = {
+  SUPABASE_URL: "https://TU-PROYECTO.supabase.co",
+  SUPABASE_ANON_KEY: "TU_SUPABASE_ANON_KEY",
+  LOGIN_EMAIL: "equipo@persianaspanorama.co", // usuario único creado en Supabase Auth
+  EMAILJS_PUBLIC_KEY: "TU_EMAILJS_PUBLIC_KEY",
+  EMAILJS_SERVICE_ID: "TU_EMAILJS_SERVICE_ID",
+  EMAILJS_TEMPLATE_ID: "TU_EMAILJS_TEMPLATE_ID",
+  ALMACEN_EMAIL: "almacen@persianaspanorama.co",
+  STORAGE_BUCKET: "evidencias"
+};
+/* ========================================================================= */
+
+const supabase = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+if (window.emailjs) emailjs.init({ publicKey: CONFIG.EMAILJS_PUBLIC_KEY });
+
+let pendingPhotoFile = null;
+
+/* ---------- Utilidades ---------- */
+function showToast(msg, type){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = type === 'error' ? 'toast-error' : (type === 'ok' ? 'toast-ok' : '');
+  t.style.display = 'block';
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(() => { t.style.display = 'none'; }, 4000);
+}
+
+function formatDateTime(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('es-CO', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+function formatDuration(startIso, endIso){
+  if(!startIso || !endIso) return '—';
+  const ms = new Date(endIso) - new Date(startIso);
+  if (ms < 0) return '—';
+  const totalMin = Math.floor(ms / 60000);
+  const days = Math.floor(totalMin / 1440);
+  const hours = Math.floor((totalMin % 1440) / 60);
+  const mins = totalMin % 60;
+  let parts = [];
+  if (days) parts.push(days + 'd');
+  if (hours) parts.push(hours + 'h');
+  if (!days && mins) parts.push(mins + 'm');
+  return parts.length ? parts.join(' ') : '<1m';
+}
+
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('[data-close]').forEach(btn => {
+  btn.addEventListener('click', () => closeModal(btn.dataset.close));
+});
+document.querySelectorAll('.modal-overlay').forEach(ov => {
+  ov.addEventListener('click', (e) => { if (e.target === ov) ov.classList.remove('open'); });
+});
+
+/* ---------- Autenticación ---------- */
+async function checkSession(){
+  const { data } = await supabase.auth.getSession();
+  if (data.session) {
+    showApp();
+  } else {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+}
+
+document.getElementById('login-btn').addEventListener('click', async () => {
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+  if (!password) return;
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true; btn.textContent = 'Ingresando…';
+  const { error } = await supabase.auth.signInWithPassword({ email: CONFIG.LOGIN_EMAIL, password });
+  btn.disabled = false; btn.textContent = 'Ingresar';
+  if (error) {
+    errEl.textContent = 'Contraseña incorrecta. Intenta de nuevo.';
+    errEl.style.display = 'block';
+    return;
+  }
+  showApp();
+});
+document.getElementById('login-password').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('login-btn').click();
+});
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await supabase.auth.signOut();
+  location.reload();
+});
+
+function showApp(){
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  loadPendientes();
+  loadHistorial();
+}
+
+/* ---------- Tabs ---------- */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'pendientes') loadPendientes();
+    if (btn.dataset.tab === 'historial') loadHistorial();
+  });
+});
+
+/* ---------- Modal: Agregar devolución ---------- */
+document.getElementById('open-add-modal').addEventListener('click', () => {
+  document.getElementById('f-item').value = '';
+  document.getElementById('f-tela').value = '';
+  document.getElementById('f-ancho').value = '';
+  document.getElementById('f-foto').value = '';
+  document.getElementById('f-foto-preview').style.display = 'none';
+  document.getElementById('add-error').style.display = 'none';
+  pendingPhotoFile = null;
+  openModal('add-modal-overlay');
+});
+
+document.getElementById('f-foto').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  pendingPhotoFile = file || null;
+  const preview = document.getElementById('f-foto-preview');
+  if (file) {
+    preview.src = URL.createObjectURL(file);
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+  }
+});
+
+document.getElementById('submit-add').addEventListener('click', async () => {
+  const item = document.getElementById('f-item').value.trim();
+  const tela = document.getElementById('f-tela').value.trim();
+  const ancho = document.getElementById('f-ancho').value.trim();
+  const errEl = document.getElementById('add-error');
+  errEl.style.display = 'none';
+
+  if (!item || !tela || !ancho) {
+    errEl.textContent = 'Completa item, tela y ancho.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('submit-add');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+
+  try {
+    let fotoUrl = null;
+    if (pendingPhotoFile) {
+      const ext = pendingPhotoFile.name.split('.').pop();
+      const path = `${item}_${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from(CONFIG.STORAGE_BUCKET)
+        .upload(path, pendingPhotoFile);
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from(CONFIG.STORAGE_BUCKET).getPublicUrl(path);
+      fotoUrl = pub.publicUrl;
+    }
+
+    const { data: inserted, error: insErr } = await supabase
+      .from('devoluciones')
+      .insert({ item, tela, ancho: parseFloat(ancho), foto_url: fotoUrl, estado: 'pendiente' })
+      .select()
+      .single();
+    if (insErr) throw insErr;
+
+    closeModal('add-modal-overlay');
+    showToast('Devolución registrada correctamente.', 'ok');
+    loadPendientes();
+    loadHistorial();
+
+    // Notificación automática a almacén
+    sendNotification([inserted]);
+
+  } catch (err) {
+    console.error(err);
+    errEl.textContent = 'No se pudo guardar: ' + (err.message || 'error desconocido');
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Guardar devolución';
+  }
+});
+
+/* ---------- Modal: Consultar estado ---------- */
+document.getElementById('open-query-modal').addEventListener('click', () => {
+  document.getElementById('f-query').value = '';
+  document.getElementById('query-results').innerHTML = '';
+  openModal('query-modal-overlay');
+});
+
+document.getElementById('submit-query').addEventListener('click', async () => {
+  const q = document.getElementById('f-query').value.trim();
+  const resultsEl = document.getElementById('query-results');
+  if (!q) { resultsEl.innerHTML = '<p class="helper-text">Escribe un item o una tela para buscar.</p>'; return; }
+  resultsEl.innerHTML = '<p class="loading-text">Buscando…</p>';
+
+  const { data, error } = await supabase
+    .from('devoluciones')
+    .select('*')
+    .or(`item.ilike.%${q}%,tela.ilike.%${q}%`)
+    .order('fecha_registro', { ascending: false });
+
+  if (error) {
+    resultsEl.innerHTML = '<p class="error-text">Error al buscar.</p>';
+    return;
+  }
+  if (!data.length) {
+    resultsEl.innerHTML = '<p class="helper-text">No se encontraron devoluciones para "' + q + '".</p>';
+    return;
+  }
+
+  resultsEl.innerHTML = data.map(row => `
+    <div class="query-result-item">
+      <div class="qr-top">
+        <span>Item ${escapeHtml(row.item)} · ${escapeHtml(row.tela)}</span>
+        <span class="status-pill ${row.estado === 'pendiente' ? 'status-pendiente' : 'status-ejecutado'}">
+          ${row.estado === 'pendiente' ? 'Pendiente por mover a bodega' : 'Ejecutado'}
+        </span>
+      </div>
+      <div class="qr-meta">Ancho: ${row.ancho} m · Registrado: ${formatDateTime(row.fecha_registro)}
+      ${row.estado === 'ejecutado' ? ' · Ejecutado: ' + formatDateTime(row.fecha_ejecucion) : ''}</div>
+    </div>
+  `).join('');
+});
+
+/* ---------- Tab 2: Pendientes ---------- */
+async function loadPendientes(){
+  const tbody = document.getElementById('pendientes-tbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="loading-text">Cargando…</td></tr>';
+
+  const { data, error } = await supabase
+    .from('devoluciones')
+    .select('*')
+    .eq('estado', 'pendiente')
+    .order('fecha_registro', { ascending: true });
+
+  if (error) {
+    tbody.innerHTML = '<tr><td colspan="6" class="loading-text">Error al cargar.</td></tr>';
+    return;
+  }
+
+  document.getElementById('pendientes-count-text').textContent =
+    data.length === 0 ? 'No hay rollos pendientes por mover.' :
+    data.length === 1 ? '1 rollo pendiente por mover a bodega de devoluciones.' :
+    `${data.length} rollos pendientes por mover a bodega de devoluciones.`;
+
+  if (!data.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Sin pendientes. Todo al día.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map(row => `
+    <tr>
+      <td>${escapeHtml(row.item)}</td>
+      <td>${escapeHtml(row.tela)}</td>
+      <td>${row.ancho} m</td>
+      <td>${row.foto_url ? `<a href="${row.foto_url}" target="_blank" rel="noopener">Ver foto</a>` : '—'}</td>
+      <td>${formatDateTime(row.fecha_registro)}</td>
+      <td>
+        <label class="check-cell">
+          <input type="checkbox" data-id="${row.id}" class="ejecutar-check" />
+          Listo
+        </label>
+      </td>
+    </tr>
+  `).join('');
+
+  document.querySelectorAll('.ejecutar-check').forEach(chk => {
+    chk.addEventListener('change', async (e) => {
+      if (!e.target.checked) return;
+      e.target.disabled = true;
+      const id = e.target.dataset.id;
+      const { error } = await supabase
+        .from('devoluciones')
+        .update({ estado: 'ejecutado', fecha_ejecucion: new Date().toISOString() })
+        .eq('id', id);
+      if (error) {
+        showToast('No se pudo actualizar el estado.', 'error');
+        e.target.checked = false;
+        e.target.disabled = false;
+        return;
+      }
+      showToast('Movimiento marcado como ejecutado.', 'ok');
+      loadPendientes();
+      loadHistorial();
+    });
+  });
+}
+
+document.getElementById('notify-btn').addEventListener('click', async () => {
+  const { data, error } = await supabase
+    .from('devoluciones')
+    .select('*')
+    .eq('estado', 'pendiente')
+    .order('fecha_registro', { ascending: true });
+  if (error) { showToast('No se pudo consultar pendientes.', 'error'); return; }
+  if (!data.length) { showToast('No hay pendientes para notificar.', 'info'); return; }
+  sendNotification(data, true);
+});
+
+/* ---------- Tab 3: Historial ---------- */
+async function loadHistorial(){
+  const tbody = document.getElementById('historial-tbody');
+  tbody.innerHTML = '<tr><td colspan="8" class="loading-text">Cargando…</td></tr>';
+
+  const { data, error } = await supabase
+    .from('devoluciones')
+    .select('*')
+    .order('fecha_registro', { ascending: false });
+
+  if (error) {
+    tbody.innerHTML = '<tr><td colspan="8" class="loading-text">Error al cargar.</td></tr>';
+    return;
+  }
+  if (!data.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Aún no hay registros.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map(row => `
+    <tr>
+      <td>${escapeHtml(row.item)}</td>
+      <td>${escapeHtml(row.tela)}</td>
+      <td>${row.ancho} m</td>
+      <td><span class="status-pill ${row.estado === 'pendiente' ? 'status-pendiente' : 'status-ejecutado'}">
+        ${row.estado === 'pendiente' ? 'Pendiente' : 'Ejecutado'}
+      </span></td>
+      <td>${formatDateTime(row.fecha_registro)}</td>
+      <td>${row.fecha_ejecucion ? formatDateTime(row.fecha_ejecucion) : '—'}</td>
+      <td>${formatDuration(row.fecha_registro, row.fecha_ejecucion)}</td>
+      <td>${row.foto_url ? `<a href="${row.foto_url}" target="_blank" rel="noopener">Ver foto</a>` : '—'}</td>
+    </tr>
+  `).join('');
+}
+
+/* ---------- Notificación por correo (EmailJS) ---------- */
+async function sendNotification(rows, manual){
+  if (!window.emailjs) return;
+  const listado = rows.map(r => `Item ${r.item} · ${r.tela} · ${r.ancho} m`).join('\n');
+  const params = {
+    to_email: CONFIG.ALMACEN_EMAIL,
+    cantidad: rows.length,
+    listado: listado,
+    fecha: new Date().toLocaleString('es-CO'),
+    tipo: manual ? 'Recordatorio manual' : 'Nueva devolución registrada'
+  };
+  try {
+    await emailjs.send(CONFIG.EMAILJS_SERVICE_ID, CONFIG.EMAILJS_TEMPLATE_ID, params);
+    if (manual) showToast('Notificación enviada a almacén.', 'ok');
+  } catch (err) {
+    console.error('EmailJS error:', err);
+    if (manual) showToast('No se pudo enviar el correo. Revisa la configuración de EmailJS.', 'error');
+  }
+}
+
+/* ---------- Helpers ---------- */
+function escapeHtml(str){
+  return String(str)
+    .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
+    .replaceAll('"','&quot;').replaceAll("'",'&#039;');
+}
+
+checkSession();
+</script>
+</body>
+</html>
