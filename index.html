@@ -657,7 +657,7 @@ function addAnchoRow(value = ''){
   const row = document.createElement('div');
   row.className = 'ancho-row';
   row.innerHTML = `
-    <input type="number" step="0.01" class="ancho-input" placeholder="Ej. 2.80" value="${value}" />
+    <input type="text" inputmode="decimal" class="ancho-input" placeholder="Ej. 2.80" value="${value}" />
     <button type="button" class="remove-ancho-btn" title="Quitar">&times;</button>
   `;
   row.querySelector('.remove-ancho-btn').addEventListener('click', () => {
@@ -670,7 +670,7 @@ document.getElementById('add-ancho-btn').addEventListener('click', () => addAnch
 
 function collectAnchos(){
   return Array.from(document.querySelectorAll('.ancho-input'))
-    .map(inp => inp.value.trim())
+    .map(inp => inp.value.trim().replace(',', '.'))
     .filter(v => v !== '' && !isNaN(parseFloat(v)))
     .map(v => parseFloat(v).toFixed(2) + ' m');
 }
