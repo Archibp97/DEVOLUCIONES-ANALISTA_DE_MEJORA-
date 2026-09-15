@@ -266,6 +266,16 @@
   .check-cell{display:flex;align-items:center;gap:8px;font-size:13.5px;}
   .check-cell input[type=checkbox]{width:17px;height:17px;accent-color:var(--ok);cursor:pointer;}
   .obs-cell{max-width:220px;font-size:13px;color:var(--ink-soft);white-space:pre-line;}
+  .ancho-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+  .ancho-row input{flex:1;}
+  .remove-ancho-btn{
+    background:none;border:none;
+    color:var(--ink-soft);
+    font-size:20px;line-height:1;
+    padding:0 6px;
+    flex-shrink:0;
+  }
+  .remove-ancho-btn:hover{color:var(--danger);}
 
   /* Modal */
   .modal-overlay{
@@ -452,8 +462,9 @@
     <datalist id="dl-items"></datalist>
     <datalist id="dl-telas"></datalist>
     <div class="field">
-      <label for="f-ancho">Ancho (m)</label>
-      <input type="number" step="0.01" id="f-ancho" placeholder="Ej. 2.80" />
+      <label>Ancho(s) (m)</label>
+      <div id="anchos-list"></div>
+      <button type="button" class="btn btn-ghost btn-small" id="add-ancho-btn" style="border:1px solid var(--accent);">+ Agregar otro ancho</button>
     </div>
     <div class="field">
       <label for="f-obs">Observación (opcional)</label>
@@ -640,11 +651,36 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 });
 
 /* ---------- Modal: Agregar devolución ---------- */
+/* ---------- Anchos múltiples (se guardan juntos en la columna 'ancho') ---------- */
+function addAnchoRow(value = ''){
+  const list = document.getElementById('anchos-list');
+  const row = document.createElement('div');
+  row.className = 'ancho-row';
+  row.innerHTML = `
+    <input type="number" step="0.01" class="ancho-input" placeholder="Ej. 2.80" value="${value}" />
+    <button type="button" class="remove-ancho-btn" title="Quitar">&times;</button>
+  `;
+  row.querySelector('.remove-ancho-btn').addEventListener('click', () => {
+    if (list.children.length > 1) row.remove();
+  });
+  list.appendChild(row);
+}
+
+document.getElementById('add-ancho-btn').addEventListener('click', () => addAnchoRow());
+
+function collectAnchos(){
+  return Array.from(document.querySelectorAll('.ancho-input'))
+    .map(inp => inp.value.trim())
+    .filter(v => v !== '' && !isNaN(parseFloat(v)))
+    .map(v => parseFloat(v).toFixed(2) + ' m');
+}
+
 document.getElementById('open-add-modal').addEventListener('click', () => {
   document.getElementById('f-item').value = '';
   document.getElementById('f-tela').value = '';
-  document.getElementById('f-ancho').value = '';
   document.getElementById('f-obs').value = '';
+  document.getElementById('anchos-list').innerHTML = '';
+  addAnchoRow();
   document.getElementById('f-foto').value = '';
   document.getElementById('f-foto-previews').innerHTML = '';
   document.getElementById('add-error').style.display = 'none';
@@ -723,17 +759,19 @@ async function uploadEvidencia(item, files){
 document.getElementById('submit-add').addEventListener('click', async () => {
   const item = document.getElementById('f-item').value.trim();
   const tela = document.getElementById('f-tela').value.trim();
-  const ancho = document.getElementById('f-ancho').value.trim();
+  const anchos = collectAnchos();
   const observacion = document.getElementById('f-obs').value.trim();
   const files = pendingEvidenceFiles;
   const errEl = document.getElementById('add-error');
   errEl.style.display = 'none';
 
-  if (!item || !tela || !ancho) {
-    errEl.textContent = 'Completa item, tela y ancho.';
+  if (!item || !tela || !anchos.length) {
+    errEl.textContent = 'Completa item, tela y al menos un ancho.';
     errEl.style.display = 'block';
     return;
   }
+
+  const ancho = anchos.join(' / ');
 
   const btn = document.getElementById('submit-add');
   btn.disabled = true; btn.textContent = 'Guardando…';
@@ -743,7 +781,7 @@ document.getElementById('submit-add').addEventListener('click', async () => {
     //    Esto es lo que hace que "Guardar" se sienta instantáneo.
     const { data: inserted, error: insErr } = await sb
       .from('devoluciones')
-      .insert({ item, tela, ancho: parseFloat(ancho), observacion: observacion || null, foto_urls: [], estado: 'pendiente' })
+      .insert({ item, tela, ancho, observacion: observacion || null, foto_urls: [], estado: 'pendiente' })
       .select()
       .single();
     if (insErr) throw insErr;
@@ -814,7 +852,7 @@ document.getElementById('submit-query').addEventListener('click', async () => {
           ${row.estado === 'pendiente' ? 'Pendiente por mover a bodega' : 'Ejecutado'}
         </span>
       </div>
-      <div class="qr-meta">Ancho: ${row.ancho} m · Registrado: ${formatDateTime(row.fecha_registro)}
+      <div class="qr-meta">Ancho: ${row.ancho} · Registrado: ${formatDateTime(row.fecha_registro)}
       ${row.estado === 'ejecutado' ? ' · Ejecutado: ' + formatDateTime(row.fecha_ejecucion) : ''}</div>
       ${row.observacion ? `<div class="qr-obs">Observación: ${escapeHtml(row.observacion)}</div>` : ''}
     </div>
@@ -851,7 +889,7 @@ async function loadPendientes(){
     <tr>
       <td>${escapeHtml(row.item)}</td>
       <td>${escapeHtml(row.tela)}</td>
-      <td>${row.ancho} m</td>
+      <td>${row.ancho}</td>
       <td class="obs-cell">${row.observacion ? escapeHtml(row.observacion) : '—'}</td>
       <td>${renderFotos(row)}</td>
       <td>${formatDateTime(row.fecha_registro)}</td>
@@ -920,7 +958,7 @@ async function loadHistorial(){
     <tr>
       <td>${escapeHtml(row.item)}</td>
       <td>${escapeHtml(row.tela)}</td>
-      <td>${row.ancho} m</td>
+      <td>${row.ancho}</td>
       <td class="obs-cell">${row.observacion ? escapeHtml(row.observacion) : '—'}</td>
       <td><span class="status-pill ${row.estado === 'pendiente' ? 'status-pendiente' : 'status-ejecutado'}">
         ${row.estado === 'pendiente' ? 'Pendiente' : 'Ejecutado'}
