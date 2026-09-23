@@ -234,7 +234,7 @@
     width:100%;
     border-collapse:collapse;
     font-size:13.5px;
-    min-width:680px;
+    min-width:960px;
   }
   table.ledger th{
     text-align:left;
@@ -246,6 +246,7 @@
     padding:12px 16px;
     border-bottom:1px solid var(--line);
     background:#F7F8FA;
+    white-space:nowrap;
   }
   table.ledger td{
     padding:13px 16px;
@@ -263,9 +264,10 @@
   .status-pill{font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:100px;letter-spacing:.01em;}
   .status-pendiente{background:var(--warn-bg);color:var(--warn);}
   .status-ejecutado{background:var(--ok-bg);color:var(--ok);}
+  .origen-pill{font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:100px;letter-spacing:.01em;background:var(--accent-soft);color:var(--accent);}
   .check-cell{display:flex;align-items:center;gap:8px;font-size:13.5px;}
   .check-cell input[type=checkbox]{width:17px;height:17px;accent-color:var(--ok);cursor:pointer;}
-  .obs-cell{max-width:220px;font-size:13px;color:var(--ink-soft);white-space:pre-line;}
+  .obs-cell{max-width:200px;font-size:13px;color:var(--ink-soft);white-space:pre-line;}
   .ancho-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
   .ancho-row input{flex:1;}
   .remove-ancho-btn{
@@ -276,6 +278,8 @@
     flex-shrink:0;
   }
   .remove-ancho-btn:hover{color:var(--danger);}
+  .field-row{display:flex;gap:8px;}
+  .field-row > *{flex:1;}
 
   /* Modal */
   .modal-overlay{
@@ -326,7 +330,7 @@
   .query-result-item:last-child{border-bottom:none;}
   .query-result-item .qr-top{display:flex;justify-content:space-between;font-weight:600;font-size:14px;}
   .query-result-item .qr-meta{color:var(--ink-soft);font-size:13px;margin-top:3px;}
-  .query-result-item .qr-obs{color:var(--ink-soft);font-size:13px;margin-top:5px;white-space:pre-line;}
+  .query-result-item .qr-extra{color:var(--ink-soft);font-size:13px;margin-top:5px;white-space:pre-line;}
 
   /* Toast */
   #toast{
@@ -392,7 +396,7 @@
       <div class="action-grid">
         <div class="action-card">
           <h2>Agregar devolución</h2>
-          <p>Registra un rollo devuelto con su item, tela, ancho y evidencia fotográfica. Queda con fecha y hora exactas.</p>
+          <p>Registra un rollo devuelto con su item, tela, ancho, cantidad, defecto, criterio de uso y evidencia. Queda con fecha y hora exactas.</p>
           <button class="btn" id="open-add-modal">+ Agregar devolución</button>
         </div>
         <div class="action-card">
@@ -414,11 +418,11 @@
         <table class="ledger">
           <thead>
             <tr>
-              <th>Item</th><th>Tela</th><th>Ancho</th><th>Observación</th><th>Evidencia</th><th>Registrado</th><th>Traslado</th>
+              <th>Item</th><th>Tela</th><th>Ancho</th><th>Cantidad</th><th>Origen</th><th>Defecto</th><th>Criterio de uso</th><th>Evidencia</th><th>Registrado</th><th>Traslado</th>
             </tr>
           </thead>
           <tbody id="pendientes-tbody">
-            <tr><td colspan="7" class="loading-text">Cargando…</td></tr>
+            <tr><td colspan="10" class="loading-text">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -433,11 +437,11 @@
         <table class="ledger">
           <thead>
             <tr>
-              <th>Item</th><th>Tela</th><th>Ancho</th><th>Observación</th><th>Estado</th><th>Registrado</th><th>Ejecutado</th><th>Tiempo</th><th>Evidencia</th>
+              <th>Item</th><th>Tela</th><th>Ancho</th><th>Cantidad</th><th>Origen</th><th>Defecto</th><th>Criterio de uso</th><th>Estado</th><th>Registrado</th><th>Ejecutado</th><th>Tiempo</th><th>Evidencia</th>
             </tr>
           </thead>
           <tbody id="historial-tbody">
-            <tr><td colspan="9" class="loading-text">Cargando…</td></tr>
+            <tr><td colspan="12" class="loading-text">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -467,8 +471,30 @@
       <button type="button" class="btn btn-ghost btn-small" id="add-ancho-btn" style="border:1px solid var(--accent);">+ Agregar otro ancho</button>
     </div>
     <div class="field">
-      <label for="f-obs">Observación (opcional)</label>
-      <textarea id="f-obs" placeholder="Ej. Rollo con manchas en el borde, cliente reporta defecto de fábrica…"></textarea>
+      <label for="f-tipo">Tipo y cantidad</label>
+      <div class="field-row">
+        <select id="f-tipo">
+          <option value="Rollo">Rollo</option>
+          <option value="Retal">Retal</option>
+        </select>
+        <input type="text" inputmode="decimal" id="f-cantidad-metros" placeholder="Cantidad en m" />
+      </div>
+    </div>
+    <div class="field">
+      <label for="f-origen">Origen</label>
+      <select id="f-origen">
+        <option value="">Selecciona…</option>
+        <option value="Nacional">Se consigue Nacional</option>
+        <option value="Exportado">Exportado</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-defecto">Defecto (opcional)</label>
+      <textarea id="f-defecto" placeholder="Ej. Rollo con manchas en el borde, cliente reporta defecto de fábrica…"></textarea>
+    </div>
+    <div class="field">
+      <label for="f-criterio">Criterio de uso (opcional)</label>
+      <input type="text" id="f-criterio" placeholder="Ej. Reutilizable en otro pedido, apto solo para muestras…" />
     </div>
     <div class="field">
       <label for="f-foto">Evidencia — fotos o videos (máximo 3)</label>
@@ -650,7 +676,6 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
-/* ---------- Modal: Agregar devolución ---------- */
 /* ---------- Anchos múltiples (se guardan juntos en la columna 'ancho') ---------- */
 function addAnchoRow(value = ''){
   const list = document.getElementById('anchos-list');
@@ -675,12 +700,17 @@ function collectAnchos(){
     .map(v => parseFloat(v).toFixed(2) + ' m');
 }
 
+/* ---------- Modal: Agregar devolución ---------- */
 document.getElementById('open-add-modal').addEventListener('click', () => {
   document.getElementById('f-item').value = '';
   document.getElementById('f-tela').value = '';
-  document.getElementById('f-obs').value = '';
   document.getElementById('anchos-list').innerHTML = '';
   addAnchoRow();
+  document.getElementById('f-tipo').value = 'Rollo';
+  document.getElementById('f-cantidad-metros').value = '';
+  document.getElementById('f-origen').value = '';
+  document.getElementById('f-defecto').value = '';
+  document.getElementById('f-criterio').value = '';
   document.getElementById('f-foto').value = '';
   document.getElementById('f-foto-previews').innerHTML = '';
   document.getElementById('add-error').style.display = 'none';
@@ -760,7 +790,11 @@ document.getElementById('submit-add').addEventListener('click', async () => {
   const item = document.getElementById('f-item').value.trim();
   const tela = document.getElementById('f-tela').value.trim();
   const anchos = collectAnchos();
-  const observacion = document.getElementById('f-obs').value.trim();
+  const tipo = document.getElementById('f-tipo').value;
+  const cantidadMetrosRaw = document.getElementById('f-cantidad-metros').value.trim().replace(',', '.');
+  const origen = document.getElementById('f-origen').value;
+  const defecto = document.getElementById('f-defecto').value.trim();
+  const criterio = document.getElementById('f-criterio').value.trim();
   const files = pendingEvidenceFiles;
   const errEl = document.getElementById('add-error');
   errEl.style.display = 'none';
@@ -770,8 +804,14 @@ document.getElementById('submit-add').addEventListener('click', async () => {
     errEl.style.display = 'block';
     return;
   }
+  if (cantidadMetrosRaw === '' || isNaN(parseFloat(cantidadMetrosRaw))) {
+    errEl.textContent = 'Ingresa la cantidad en metros.';
+    errEl.style.display = 'block';
+    return;
+  }
 
   const ancho = anchos.join(' / ');
+  const cantidad = `${tipo} · ${parseFloat(cantidadMetrosRaw).toFixed(2)} m`;
 
   const btn = document.getElementById('submit-add');
   btn.disabled = true; btn.textContent = 'Guardando…';
@@ -781,7 +821,13 @@ document.getElementById('submit-add').addEventListener('click', async () => {
     //    Esto es lo que hace que "Guardar" se sienta instantáneo.
     const { data: inserted, error: insErr } = await sb
       .from('devoluciones')
-      .insert({ item, tela, ancho, observacion: observacion || null, foto_urls: [], estado: 'pendiente' })
+      .insert({
+        item, tela, ancho, cantidad,
+        origen: origen || null,
+        defecto: defecto || null,
+        criterio_uso: criterio || null,
+        foto_urls: [], estado: 'pendiente'
+      })
       .select()
       .single();
     if (insErr) throw insErr;
@@ -852,9 +898,11 @@ document.getElementById('submit-query').addEventListener('click', async () => {
           ${row.estado === 'pendiente' ? 'Pendiente por mover a bodega' : 'Ejecutado'}
         </span>
       </div>
-      <div class="qr-meta">Ancho: ${row.ancho} · Registrado: ${formatDateTime(row.fecha_registro)}
+      <div class="qr-meta">Ancho: ${row.ancho} · Cantidad: ${row.cantidad || '—'} · Registrado: ${formatDateTime(row.fecha_registro)}
       ${row.estado === 'ejecutado' ? ' · Ejecutado: ' + formatDateTime(row.fecha_ejecucion) : ''}</div>
-      ${row.observacion ? `<div class="qr-obs">Observación: ${escapeHtml(row.observacion)}</div>` : ''}
+      ${row.origen ? `<div class="qr-extra">Origen: ${escapeHtml(row.origen)}</div>` : ''}
+      ${row.defecto ? `<div class="qr-extra">Defecto: ${escapeHtml(row.defecto)}</div>` : ''}
+      ${row.criterio_uso ? `<div class="qr-extra">Criterio de uso: ${escapeHtml(row.criterio_uso)}</div>` : ''}
     </div>
   `).join('');
 });
@@ -862,7 +910,7 @@ document.getElementById('submit-query').addEventListener('click', async () => {
 /* ---------- Tab 2: Pendientes ---------- */
 async function loadPendientes(){
   const tbody = document.getElementById('pendientes-tbody');
-  tbody.innerHTML = '<tr><td colspan="7" class="loading-text">Cargando…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="10" class="loading-text">Cargando…</td></tr>';
 
   const { data, error } = await sb
     .from('devoluciones')
@@ -871,7 +919,7 @@ async function loadPendientes(){
     .order('fecha_registro', { ascending: true });
 
   if (error) {
-    tbody.innerHTML = '<tr><td colspan="7" class="loading-text">Error al cargar.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="loading-text">Error al cargar.</td></tr>';
     return;
   }
 
@@ -881,7 +929,7 @@ async function loadPendientes(){
     `${data.length} rollos pendientes por mover a bodega de devoluciones.`;
 
   if (!data.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Sin pendientes. Todo al día.</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Sin pendientes. Todo al día.</td></tr>';
     return;
   }
 
@@ -890,7 +938,10 @@ async function loadPendientes(){
       <td>${escapeHtml(row.item)}</td>
       <td>${escapeHtml(row.tela)}</td>
       <td>${row.ancho}</td>
-      <td class="obs-cell">${row.observacion ? escapeHtml(row.observacion) : '—'}</td>
+      <td>${row.cantidad || '—'}</td>
+      <td>${row.origen ? `<span class="origen-pill">${escapeHtml(row.origen)}</span>` : '—'}</td>
+      <td class="obs-cell">${row.defecto ? escapeHtml(row.defecto) : '—'}</td>
+      <td class="obs-cell">${row.criterio_uso ? escapeHtml(row.criterio_uso) : '—'}</td>
       <td>${renderFotos(row)}</td>
       <td>${formatDateTime(row.fecha_registro)}</td>
       <td>
@@ -938,7 +989,7 @@ document.getElementById('notify-btn').addEventListener('click', async () => {
 /* ---------- Tab 3: Historial ---------- */
 async function loadHistorial(){
   const tbody = document.getElementById('historial-tbody');
-  tbody.innerHTML = '<tr><td colspan="9" class="loading-text">Cargando…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="12" class="loading-text">Cargando…</td></tr>';
 
   const { data, error } = await sb
     .from('devoluciones')
@@ -946,11 +997,11 @@ async function loadHistorial(){
     .order('fecha_registro', { ascending: false });
 
   if (error) {
-    tbody.innerHTML = '<tr><td colspan="9" class="loading-text">Error al cargar.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" class="loading-text">Error al cargar.</td></tr>';
     return;
   }
   if (!data.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Aún no hay registros.</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="12">Aún no hay registros.</td></tr>';
     return;
   }
 
@@ -959,7 +1010,10 @@ async function loadHistorial(){
       <td>${escapeHtml(row.item)}</td>
       <td>${escapeHtml(row.tela)}</td>
       <td>${row.ancho}</td>
-      <td class="obs-cell">${row.observacion ? escapeHtml(row.observacion) : '—'}</td>
+      <td>${row.cantidad || '—'}</td>
+      <td>${row.origen ? `<span class="origen-pill">${escapeHtml(row.origen)}</span>` : '—'}</td>
+      <td class="obs-cell">${row.defecto ? escapeHtml(row.defecto) : '—'}</td>
+      <td class="obs-cell">${row.criterio_uso ? escapeHtml(row.criterio_uso) : '—'}</td>
       <td><span class="status-pill ${row.estado === 'pendiente' ? 'status-pendiente' : 'status-ejecutado'}">
         ${row.estado === 'pendiente' ? 'Pendiente' : 'Ejecutado'}
       </span></td>
@@ -974,7 +1028,7 @@ async function loadHistorial(){
 /* ---------- Notificación por correo (EmailJS) ---------- */
 async function sendNotification(rows, manual){
   if (!window.emailjs) return;
-  const listado = rows.map(r => `Item ${r.item} · ${r.tela} · ${r.ancho} m`).join('\n');
+  const listado = rows.map(r => `Item ${r.item} · ${r.tela} · ${r.ancho}${r.cantidad ? ' · ' + r.cantidad : ''}`).join('\n');
   const params = {
     to_email: CONFIG.ALMACEN_EMAIL,
     cantidad: rows.length,
