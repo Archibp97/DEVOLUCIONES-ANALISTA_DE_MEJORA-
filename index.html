@@ -265,6 +265,9 @@
   .status-pendiente{background:var(--warn-bg);color:var(--warn);}
   .status-ejecutado{background:var(--ok-bg);color:var(--ok);}
   .origen-pill{font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:100px;letter-spacing:.01em;background:var(--accent-soft);color:var(--accent);}
+  .clasif-pill{font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:100px;letter-spacing:.01em;}
+  .clasif-devolucion{background:#E3F3E7;color:#166534;}
+  .clasif-reclamacion{background:#FBE7E4;color:#B42318;}
   .check-cell{display:flex;align-items:center;gap:8px;font-size:13.5px;}
   .check-cell input[type=checkbox]{width:17px;height:17px;accent-color:var(--ok);cursor:pointer;}
   .obs-cell{max-width:280px;font-size:13px;color:var(--ink-soft);white-space:pre-line;}
@@ -418,11 +421,11 @@
         <table class="ledger">
           <thead>
             <tr>
-              <th>Item</th><th>Tela</th><th>Ancho</th><th>Cantidad</th><th>Origen</th><th>Defecto</th><th>Criterio de uso</th><th>Evidencia</th><th>Registrado</th><th>Traslado</th>
+              <th>Item</th><th>Tela</th><th>Clasificación</th><th>Ancho</th><th>Cantidad</th><th>Origen</th><th>Defecto</th><th>Criterio de uso</th><th>Evidencia</th><th>Registrado</th><th>Traslado</th>
             </tr>
           </thead>
           <tbody id="pendientes-tbody">
-            <tr><td colspan="10" class="loading-text">Cargando…</td></tr>
+            <tr><td colspan="11" class="loading-text">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -437,11 +440,11 @@
         <table class="ledger">
           <thead>
             <tr>
-              <th>Item</th><th>Tela</th><th>Ancho</th><th>Cantidad</th><th>Origen</th><th>Defecto</th><th>Criterio de uso</th><th>Estado</th><th>Registrado</th><th>Ejecutado</th><th>Tiempo</th><th>Evidencia</th>
+              <th>Item</th><th>Tela</th><th>Clasificación</th><th>Ancho</th><th>Cantidad</th><th>Origen</th><th>Defecto</th><th>Criterio de uso</th><th>Estado</th><th>Registrado</th><th>Ejecutado</th><th>Tiempo</th><th>Evidencia</th>
             </tr>
           </thead>
           <tbody id="historial-tbody">
-            <tr><td colspan="12" class="loading-text">Cargando…</td></tr>
+            <tr><td colspan="13" class="loading-text">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -455,6 +458,14 @@
   <div class="modal">
     <button class="modal-close" data-close="add-modal-overlay">&times;</button>
     <h2>Agregar devolución</h2>
+    <div class="field">
+      <label for="f-clasificacion">Clasificación</label>
+      <select id="f-clasificacion">
+        <option value="">Selecciona…</option>
+        <option value="Devolución">Devolución</option>
+        <option value="Reclamación">Reclamación</option>
+      </select>
+    </div>
     <div class="field">
       <label for="f-item">Item (número)</label>
       <input type="text" id="f-item" inputmode="numeric" list="dl-items" placeholder="Ej. 10234" autocomplete="off" />
@@ -703,6 +714,7 @@ function collectAnchos(){
 
 /* ---------- Modal: Agregar devolución ---------- */
 document.getElementById('open-add-modal').addEventListener('click', () => {
+  document.getElementById('f-clasificacion').value = '';
   document.getElementById('f-item').value = '';
   document.getElementById('f-tela').value = '';
   document.getElementById('anchos-list').innerHTML = '';
@@ -788,6 +800,7 @@ async function uploadEvidencia(item, files){
 }
 
 document.getElementById('submit-add').addEventListener('click', async () => {
+  const clasificacion = document.getElementById('f-clasificacion').value;
   const item = document.getElementById('f-item').value.trim();
   const tela = document.getElementById('f-tela').value.trim();
   const anchos = collectAnchos();
@@ -800,6 +813,11 @@ document.getElementById('submit-add').addEventListener('click', async () => {
   const errEl = document.getElementById('add-error');
   errEl.style.display = 'none';
 
+  if (!clasificacion) {
+    errEl.textContent = 'Selecciona si es Devolución o Reclamación.';
+    errEl.style.display = 'block';
+    return;
+  }
   if (!item || !tela || !anchos.length) {
     errEl.textContent = 'Completa item, tela y al menos un ancho.';
     errEl.style.display = 'block';
@@ -823,6 +841,7 @@ document.getElementById('submit-add').addEventListener('click', async () => {
     const { data: inserted, error: insErr } = await sb
       .from('devoluciones')
       .insert({
+        clasificacion,
         item, tela, ancho, cantidad,
         origen: origen || null,
         defecto: defecto || null,
@@ -899,7 +918,9 @@ document.getElementById('submit-query').addEventListener('click', async () => {
           ${row.estado === 'pendiente' ? 'Pendiente por mover a bodega' : 'Ejecutado'}
         </span>
       </div>
-      <div class="qr-meta">Ancho: ${row.ancho} · Cantidad: ${row.cantidad || '—'} · Registrado: ${formatDateTime(row.fecha_registro)}
+      <div class="qr-meta">
+        ${row.clasificacion ? `<span class="clasif-pill ${row.clasificacion === 'Reclamación' ? 'clasif-reclamacion' : 'clasif-devolucion'}">${escapeHtml(row.clasificacion)}</span> · ` : ''}
+        Ancho: ${row.ancho} · Cantidad: ${row.cantidad || '—'} · Registrado: ${formatDateTime(row.fecha_registro)}
       ${row.estado === 'ejecutado' ? ' · Ejecutado: ' + formatDateTime(row.fecha_ejecucion) : ''}</div>
       ${row.origen ? `<div class="qr-extra">Origen: ${escapeHtml(row.origen)}</div>` : ''}
       ${row.defecto ? `<div class="qr-extra">Defecto: ${escapeHtml(row.defecto)}</div>` : ''}
@@ -911,7 +932,7 @@ document.getElementById('submit-query').addEventListener('click', async () => {
 /* ---------- Tab 2: Pendientes ---------- */
 async function loadPendientes(){
   const tbody = document.getElementById('pendientes-tbody');
-  tbody.innerHTML = '<tr><td colspan="10" class="loading-text">Cargando…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="11" class="loading-text">Cargando…</td></tr>';
 
   const { data, error } = await sb
     .from('devoluciones')
@@ -920,7 +941,7 @@ async function loadPendientes(){
     .order('fecha_registro', { ascending: true });
 
   if (error) {
-    tbody.innerHTML = '<tr><td colspan="10" class="loading-text">Error al cargar.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="loading-text">Error al cargar.</td></tr>';
     return;
   }
 
@@ -930,7 +951,7 @@ async function loadPendientes(){
     `${data.length} rollos pendientes por mover a bodega de devoluciones.`;
 
   if (!data.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Sin pendientes. Todo al día.</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="11">Sin pendientes. Todo al día.</td></tr>';
     return;
   }
 
@@ -938,6 +959,7 @@ async function loadPendientes(){
     <tr>
       <td>${escapeHtml(row.item)}</td>
       <td>${escapeHtml(row.tela)}</td>
+      <td>${row.clasificacion ? `<span class="clasif-pill ${row.clasificacion === 'Reclamación' ? 'clasif-reclamacion' : 'clasif-devolucion'}">${escapeHtml(row.clasificacion)}</span>` : '—'}</td>
       <td>${row.ancho}</td>
       <td>${row.cantidad || '—'}</td>
       <td>${row.origen ? `<span class="origen-pill">${escapeHtml(row.origen)}</span>` : '—'}</td>
@@ -990,7 +1012,7 @@ document.getElementById('notify-btn').addEventListener('click', async () => {
 /* ---------- Tab 3: Historial ---------- */
 async function loadHistorial(){
   const tbody = document.getElementById('historial-tbody');
-  tbody.innerHTML = '<tr><td colspan="12" class="loading-text">Cargando…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="13" class="loading-text">Cargando…</td></tr>';
 
   const { data, error } = await sb
     .from('devoluciones')
@@ -998,11 +1020,11 @@ async function loadHistorial(){
     .order('fecha_registro', { ascending: false });
 
   if (error) {
-    tbody.innerHTML = '<tr><td colspan="12" class="loading-text">Error al cargar.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" class="loading-text">Error al cargar.</td></tr>';
     return;
   }
   if (!data.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="12">Aún no hay registros.</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="13">Aún no hay registros.</td></tr>';
     return;
   }
 
@@ -1010,6 +1032,7 @@ async function loadHistorial(){
     <tr>
       <td>${escapeHtml(row.item)}</td>
       <td>${escapeHtml(row.tela)}</td>
+      <td>${row.clasificacion ? `<span class="clasif-pill ${row.clasificacion === 'Reclamación' ? 'clasif-reclamacion' : 'clasif-devolucion'}">${escapeHtml(row.clasificacion)}</span>` : '—'}</td>
       <td>${row.ancho}</td>
       <td>${row.cantidad || '—'}</td>
       <td>${row.origen ? `<span class="origen-pill">${escapeHtml(row.origen)}</span>` : '—'}</td>
@@ -1029,7 +1052,7 @@ async function loadHistorial(){
 /* ---------- Notificación por correo (EmailJS) ---------- */
 async function sendNotification(rows, manual){
   if (!window.emailjs) return;
-  const listado = rows.map(r => `Item ${r.item} · ${r.tela} · ${r.ancho}${r.cantidad ? ' · ' + r.cantidad : ''}`).join('\n');
+  const listado = rows.map(r => `${r.clasificacion ? '[' + r.clasificacion + '] ' : ''}Item ${r.item} · ${r.tela} · ${r.ancho}${r.cantidad ? ' · ' + r.cantidad : ''}`).join('\n');
   const params = {
     to_email: CONFIG.ALMACEN_EMAIL,
     cantidad: rows.length,
