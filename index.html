@@ -542,11 +542,11 @@
 const CONFIG = {
   SUPABASE_URL: "https://nyijgrqhmgcuupiuncmz.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55aWpncnFobWdjdXVwaXVuY216Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5NjE3NDcsImV4cCI6MjEwNDUzNzc0N30.yCZxm7VMXbEleKGvasjqAoDdga_Y0l-H_4FCUO1FtiI",
-  LOGIN_EMAIL: "equipo@persianaspanorama.co", // usuario único creado en Supabase Auth
+  LOGIN_EMAIL: "equipo@persianaspanorama.co",
   EMAILJS_PUBLIC_KEY: "PjnJ9wLBspUM_Y8_9",
   EMAILJS_SERVICE_ID: "service_ypwzko4",
   EMAILJS_TEMPLATE_ID: "template_tr1an1o",
-  ALMACEN_EMAIL: "produccion@persianaspanorama.com, analistademejora@persianaspanorama.com, almacen@persianaspanorama.co, compras@persianaspanorama.com", 
+  ALMACEN_EMAIL: "produccion@persianaspanorama.com, analistademejora@persianaspanorama.com, almacen@persianaspanorama.co, compras@persianaspanorama.com",
   STORAGE_BUCKET: "evidencias",
   CATALOGO_TABLE: "catalogo_telas"
 };
@@ -555,10 +555,9 @@ const CONFIG = {
 const sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 if (window.emailjs) emailjs.init({ publicKey: CONFIG.EMAILJS_PUBLIC_KEY });
 
-let pendingEvidenceFiles = []; // hasta 3 archivos (fotos y/o videos)
-let catalogo = []; // [{ item, tela }] — catálogo de referencia, nunca restringe lo que se puede digitar
+let pendingEvidenceFiles = [];
+let catalogo = [];
 
-/* ---------- Catálogo item ↔ tela (autocompletado, no restrictivo) ---------- */
 async function loadCatalogo(){
   const { data, error } = await sb.from(CONFIG.CATALOGO_TABLE).select('item, tela');
   if (error || !data) { console.warn('No se pudo cargar el catálogo de telas:', error); return; }
@@ -582,17 +581,16 @@ document.getElementById('f-item').addEventListener('input', (e) => {
   const val = normalizar(e.target.value);
   if (!val) return;
   const match = catalogo.find(c => normalizar(c.item) === val);
-  if (match) document.getElementById('f-tela').value = match.tela; // si no hay match, se deja digitar libre
+  if (match) document.getElementById('f-tela').value = match.tela;
 });
 
 document.getElementById('f-tela').addEventListener('input', (e) => {
   const val = normalizar(e.target.value);
   if (!val) return;
   const match = catalogo.find(c => normalizar(c.tela) === val);
-  if (match) document.getElementById('f-item').value = match.item; // si no hay match, se deja digitar libre
+  if (match) document.getElementById('f-item').value = match.item;
 });
 
-/* ---------- Utilidades ---------- */
 function showToast(msg, type){
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -632,7 +630,6 @@ document.querySelectorAll('.modal-overlay').forEach(ov => {
   ov.addEventListener('click', (e) => { if (e.target === ov) ov.classList.remove('open'); });
 });
 
-/* ---------- Autenticación ---------- */
 async function checkSession(){
   const { data } = await sb.auth.getSession();
   if (data.session) {
@@ -676,7 +673,6 @@ function showApp(){
   loadHistorial();
 }
 
-/* ---------- Tabs ---------- */
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -688,7 +684,6 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
-/* ---------- Anchos múltiples (se guardan juntos en la columna 'ancho') ---------- */
 function addAnchoRow(value = ''){
   const list = document.getElementById('anchos-list');
   const row = document.createElement('div');
@@ -712,7 +707,6 @@ function collectAnchos(){
     .map(v => parseFloat(v).toFixed(2) + ' m');
 }
 
-/* ---------- Modal: Agregar devolución ---------- */
 document.getElementById('open-add-modal').addEventListener('click', () => {
   document.getElementById('f-clasificacion').value = '';
   document.getElementById('f-item').value = '';
@@ -759,9 +753,6 @@ document.getElementById('f-foto').addEventListener('change', (e) => {
   });
 });
 
-/* Comprime imágenes en el navegador antes de subirlas (los videos se suben tal cual).
-   Esto es lo que hace que guardar se sienta mucho más rápido: una foto de celular de
-   4-8 MB queda en unos cientos de KB antes de viajar a Supabase. */
 function compressImage(file, maxDim = 1600, quality = 0.8){
   return new Promise((resolve) => {
     if (!file.type.startsWith('image/') || file.type === 'image/gif') { resolve(file); return; }
@@ -836,8 +827,6 @@ document.getElementById('submit-add').addEventListener('click', async () => {
   btn.disabled = true; btn.textContent = 'Guardando…';
 
   try {
-    // 1) Guardamos el registro de una vez (sin esperar a que suban fotos/videos).
-    //    Esto es lo que hace que "Guardar" se sienta instantáneo.
     const { data: inserted, error: insErr } = await sb
       .from('devoluciones')
       .insert({
@@ -856,10 +845,8 @@ document.getElementById('submit-add').addEventListener('click', async () => {
     showToast('Devolución registrada correctamente.', 'ok');
     loadPendientes();
     loadHistorial();
-    sendNotification([inserted]); // aviso a almacén inmediato, no espera evidencia
+    sendNotification([inserted]);
 
-    // 2) La evidencia se comprime y sube en segundo plano; cuando termina,
-    //    actualiza el registro y refresca las tablas sin bloquear al usuario.
     if (files.length) {
       uploadEvidencia(item, files)
         .then(async (urls) => {
@@ -882,7 +869,6 @@ document.getElementById('submit-add').addEventListener('click', async () => {
   }
 });
 
-/* ---------- Modal: Consultar estado ---------- */
 document.getElementById('open-query-modal').addEventListener('click', () => {
   document.getElementById('f-query').value = '';
   document.getElementById('query-results').innerHTML = '';
@@ -929,7 +915,6 @@ document.getElementById('submit-query').addEventListener('click', async () => {
   `).join('');
 });
 
-/* ---------- Tab 2: Pendientes ---------- */
 async function loadPendientes(){
   const tbody = document.getElementById('pendientes-tbody');
   tbody.innerHTML = '<tr><td colspan="11" class="loading-text">Cargando…</td></tr>';
@@ -1009,7 +994,6 @@ document.getElementById('notify-btn').addEventListener('click', async () => {
   sendNotification(data, true);
 });
 
-/* ---------- Tab 3: Historial ---------- */
 async function loadHistorial(){
   const tbody = document.getElementById('historial-tbody');
   tbody.innerHTML = '<tr><td colspan="13" class="loading-text">Cargando…</td></tr>';
@@ -1049,7 +1033,6 @@ async function loadHistorial(){
   `).join('');
 }
 
-/* ---------- Notificación por correo (EmailJS) ---------- */
 async function sendNotification(rows, manual){
   if (!window.emailjs) return;
   const listado = rows.map(r => `${r.clasificacion ? '[' + r.clasificacion + '] ' : ''}Item ${r.item} · ${r.tela} · ${r.ancho}${r.cantidad ? ' · ' + r.cantidad : ''}`).join('\n');
@@ -1069,7 +1052,6 @@ async function sendNotification(rows, manual){
   }
 }
 
-/* ---------- Helpers ---------- */
 function renderFotos(row){
   const urls = (row.foto_urls && row.foto_urls.length) ? row.foto_urls : (row.foto_url ? [row.foto_url] : []);
   if (!urls.length) return '—';
