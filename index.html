@@ -388,7 +388,8 @@
 
   <nav class="tabs">
     <button class="tab-btn active" data-tab="registro">Registro</button>
-    <button class="tab-btn" data-tab="pendientes">Pendientes</button>
+    <button class="tab-btn" data-tab="pendientes-devolucion">Pendientes por traslado</button>
+    <button class="tab-btn" data-tab="pendientes-reclamacion">Pendientes por reclamar</button>
     <button class="tab-btn" data-tab="historial">Historial</button>
   </nav>
 
@@ -410,22 +411,43 @@
       </div>
     </section>
 
-    <!-- ---------- TAB 2: PENDIENTES ---------- -->
-    <section class="tab-panel" id="panel-pendientes">
+    <!-- ---------- TAB 2: PENDIENTES POR TRASLADO (Devolución) ---------- -->
+    <section class="tab-panel" id="panel-pendientes-devolucion">
       <div class="section-head">
-        <h2>Pendientes por mover a bodega de devoluciones</h2>
-        <button class="btn btn-small btn-ghost" id="notify-btn" style="border:1px solid var(--accent);">Enviar recordatorio por correo</button>
+        <h2>Pendientes por trasladar a bodega de devoluciones</h2>
+        <button class="btn btn-small btn-ghost" id="notify-devolucion-btn" style="border:1px solid var(--accent);">Enviar recordatorio por correo</button>
       </div>
-      <p class="helper-text" id="pendientes-count-text"></p>
+      <p class="helper-text" id="pendientes-devolucion-count-text"></p>
       <div class="ledger-wrap">
         <table class="ledger">
           <thead>
             <tr>
-              <th>Item</th><th>Tela</th><th>Clasificación</th><th>Ancho</th><th>Cantidad</th><th>Origen</th><th>Defecto</th><th>Criterio de uso</th><th>Evidencia</th><th>Registrado</th><th>Traslado</th>
+              <th>Item</th><th>Tela</th><th>Ancho</th><th>Cantidad</th><th>Origen</th><th>Defecto</th><th>Criterio de uso</th><th>Evidencia</th><th>Registrado</th><th>Traslado</th>
             </tr>
           </thead>
-          <tbody id="pendientes-tbody">
-            <tr><td colspan="11" class="loading-text">Cargando…</td></tr>
+          <tbody id="pendientes-devolucion-tbody">
+            <tr><td colspan="10" class="loading-text">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ---------- TAB 2B: PENDIENTES POR RECLAMAR (Reclamación) ---------- -->
+    <section class="tab-panel" id="panel-pendientes-reclamacion">
+      <div class="section-head">
+        <h2>Pendientes por reclamar</h2>
+        <button class="btn btn-small btn-ghost" id="notify-reclamacion-btn" style="border:1px solid var(--accent);">Enviar recordatorio por correo</button>
+      </div>
+      <p class="helper-text" id="pendientes-reclamacion-count-text"></p>
+      <div class="ledger-wrap">
+        <table class="ledger">
+          <thead>
+            <tr>
+              <th>Item</th><th>Tela</th><th>Ancho</th><th>Cantidad</th><th>Origen</th><th>Defecto</th><th>Criterio de uso</th><th>Evidencia</th><th>Registrado</th><th>Resuelta</th>
+            </tr>
+          </thead>
+          <tbody id="pendientes-reclamacion-tbody">
+            <tr><td colspan="10" class="loading-text">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -546,7 +568,7 @@ const CONFIG = {
   EMAILJS_PUBLIC_KEY: "PjnJ9wLBspUM_Y8_9",
   EMAILJS_SERVICE_ID: "service_ypwzko4",
   EMAILJS_TEMPLATE_ID: "template_tr1an1o",
-  ALMACEN_EMAIL: "produccion@persianaspanorama.com, analistademejora@persianaspanorama.com, almacen@persianaspanorama.co, compras@persianaspanorama.com, jefeproduccion@persianaspanorama.co",
+  ALMACEN_EMAIL: "produccion@persianaspanorama.com, analistademejora@persianaspanorama.com, almacen@persianaspanorama.co, compras@persianaspanorama.com",
   STORAGE_BUCKET: "evidencias",
   CATALOGO_TABLE: "catalogo_telas"
 };
@@ -679,7 +701,8 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
-    if (btn.dataset.tab === 'pendientes') loadPendientes();
+    if (btn.dataset.tab === 'pendientes-devolucion') loadPendientesPorClasificacion('Devolución');
+    if (btn.dataset.tab === 'pendientes-reclamacion') loadPendientesPorClasificacion('Reclamación');
     if (btn.dataset.tab === 'historial') loadHistorial();
   });
 });
@@ -915,28 +938,51 @@ document.getElementById('submit-query').addEventListener('click', async () => {
   `).join('');
 });
 
-async function loadPendientes(){
-  const tbody = document.getElementById('pendientes-tbody');
-  tbody.innerHTML = '<tr><td colspan="11" class="loading-text">Cargando…</td></tr>';
+/* ---------- Pendientes: función genérica para Devolución y Reclamación ---------- */
+const PENDIENTES_CONFIG = {
+  'Devolución': {
+    tbodyId: 'pendientes-devolucion-tbody',
+    countId: 'pendientes-devolucion-count-text',
+    colspan: 10,
+    checkLabel: 'Listo',
+    emptyText: 'Sin pendientes. Todo al día.',
+    countText: (n) => n === 0 ? 'No hay rollos pendientes por trasladar.' :
+      n === 1 ? '1 rollo pendiente por trasladar a bodega de devoluciones.' :
+      `${n} rollos pendientes por trasladar a bodega de devoluciones.`
+  },
+  'Reclamación': {
+    tbodyId: 'pendientes-reclamacion-tbody',
+    countId: 'pendientes-reclamacion-count-text',
+    colspan: 10,
+    checkLabel: 'Resuelta',
+    emptyText: 'Sin reclamaciones pendientes.',
+    countText: (n) => n === 0 ? 'No hay reclamaciones pendientes.' :
+      n === 1 ? '1 reclamación pendiente por resolver.' :
+      `${n} reclamaciones pendientes por resolver.`
+  }
+};
+
+async function loadPendientesPorClasificacion(clasificacion){
+  const cfg = PENDIENTES_CONFIG[clasificacion];
+  const tbody = document.getElementById(cfg.tbodyId);
+  tbody.innerHTML = `<tr><td colspan="${cfg.colspan}" class="loading-text">Cargando…</td></tr>`;
 
   const { data, error } = await sb
     .from('devoluciones')
     .select('*')
     .eq('estado', 'pendiente')
+    .eq('clasificacion', clasificacion)
     .order('fecha_registro', { ascending: true });
 
   if (error) {
-    tbody.innerHTML = '<tr><td colspan="11" class="loading-text">Error al cargar.</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="${cfg.colspan}" class="loading-text">Error al cargar.</td></tr>`;
     return;
   }
 
-  document.getElementById('pendientes-count-text').textContent =
-    data.length === 0 ? 'No hay rollos pendientes por mover.' :
-    data.length === 1 ? '1 rollo pendiente por mover a bodega de devoluciones.' :
-    `${data.length} rollos pendientes por mover a bodega de devoluciones.`;
+  document.getElementById(cfg.countId).textContent = cfg.countText(data.length);
 
   if (!data.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="11">Sin pendientes. Todo al día.</td></tr>';
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="${cfg.colspan}">${cfg.emptyText}</td></tr>`;
     return;
   }
 
@@ -944,7 +990,6 @@ async function loadPendientes(){
     <tr>
       <td>${escapeHtml(row.item)}</td>
       <td>${escapeHtml(row.tela)}</td>
-      <td>${row.clasificacion ? `<span class="clasif-pill ${row.clasificacion === 'Reclamación' ? 'clasif-reclamacion' : 'clasif-devolucion'}">${escapeHtml(row.clasificacion)}</span>` : '—'}</td>
       <td>${row.ancho}</td>
       <td>${row.cantidad || '—'}</td>
       <td>${row.origen ? `<span class="origen-pill">${escapeHtml(row.origen)}</span>` : '—'}</td>
@@ -955,13 +1000,13 @@ async function loadPendientes(){
       <td>
         <label class="check-cell">
           <input type="checkbox" data-id="${row.id}" class="ejecutar-check" />
-          Listo
+          ${cfg.checkLabel}
         </label>
       </td>
     </tr>
   `).join('');
 
-  document.querySelectorAll('.ejecutar-check').forEach(chk => {
+  tbody.querySelectorAll('.ejecutar-check').forEach(chk => {
     chk.addEventListener('change', async (e) => {
       if (!e.target.checked) return;
       e.target.disabled = true;
@@ -977,22 +1022,31 @@ async function loadPendientes(){
         return;
       }
       showToast('Movimiento marcado como ejecutado.', 'ok');
-      loadPendientes();
+      loadPendientesPorClasificacion(clasificacion);
       loadHistorial();
     });
   });
 }
 
-document.getElementById('notify-btn').addEventListener('click', async () => {
+function loadPendientes(){
+  loadPendientesPorClasificacion('Devolución');
+  loadPendientesPorClasificacion('Reclamación');
+}
+
+async function notificarPendientes(clasificacion){
   const { data, error } = await sb
     .from('devoluciones')
     .select('*')
     .eq('estado', 'pendiente')
+    .eq('clasificacion', clasificacion)
     .order('fecha_registro', { ascending: true });
   if (error) { showToast('No se pudo consultar pendientes.', 'error'); return; }
   if (!data.length) { showToast('No hay pendientes para notificar.', 'info'); return; }
   sendNotification(data, true);
-});
+}
+
+document.getElementById('notify-devolucion-btn').addEventListener('click', () => notificarPendientes('Devolución'));
+document.getElementById('notify-reclamacion-btn').addEventListener('click', () => notificarPendientes('Reclamación'));
 
 async function loadHistorial(){
   const tbody = document.getElementById('historial-tbody');
@@ -1035,13 +1089,16 @@ async function loadHistorial(){
 
 async function sendNotification(rows, manual){
   if (!window.emailjs) return;
-  const listado = rows.map(r => `${r.clasificacion ? '[' + r.clasificacion + '] ' : ''}Item ${r.item} · ${r.tela} · ${r.ancho}${r.cantidad ? ' · ' + r.cantidad : ''}`).join('\n');
+  const clasif = rows[0]?.clasificacion || '';
+  const listado = rows.map(r => `Item ${r.item} · ${r.tela} · ${r.ancho}${r.cantidad ? ' · ' + r.cantidad : ''}`).join('\n');
   const params = {
     to_email: CONFIG.ALMACEN_EMAIL,
     cantidad: rows.length,
     listado: listado,
     fecha: new Date().toLocaleString('es-CO'),
-    tipo: manual ? 'Recordatorio manual' : 'Nueva devolución registrada'
+    tipo: manual
+      ? `Recordatorio manual — ${clasif || 'pendientes'}`
+      : `Nueva ${clasif || 'devolución'} registrada`
   };
   try {
     await emailjs.send(CONFIG.EMAILJS_SERVICE_ID, CONFIG.EMAILJS_TEMPLATE_ID, params);
