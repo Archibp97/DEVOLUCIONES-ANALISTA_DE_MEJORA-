@@ -535,6 +535,13 @@
       <input type="file" id="f-foto" accept="image/*,video/*" multiple />
       <div id="f-foto-previews" class="thumb-preview-grid"></div>
     </div>
+    <div class="field">
+      <label class="check-cell" style="font-size:14px;color:var(--ink);">
+        <input type="checkbox" id="f-notificar" checked />
+        Enviar notificación por correo al guardar
+      </label>
+      <p class="helper-text" style="margin-top:4px;margin-bottom:0;">Desactívala si vas a registrar varias seguidas — luego usa "Enviar recordatorio por correo" para avisar de todas juntas.</p>
+    </div>
     <p class="error-text" id="add-error" style="display:none;"></p>
     <button class="btn btn-block" id="submit-add">Guardar devolución</button>
   </div>
@@ -568,7 +575,8 @@ const CONFIG = {
   EMAILJS_PUBLIC_KEY: "PjnJ9wLBspUM_Y8_9",
   EMAILJS_SERVICE_ID: "service_ypwzko4",
   EMAILJS_TEMPLATE_ID: "template_tr1an1o",
-  ALMACEN_EMAIL: "produccion@persianaspanorama.com, analistademejora@persianaspanorama.com, almacen@persianaspanorama.co, compras@persianaspanorama.com",
+  EMAILS_DEVOLUCION: "produccion@persianaspanorama.com, analistademejora@persianaspanorama.com, almacen@persianaspanorama.co, compras@persianaspanorama.com",
+  EMAILS_RECLAMACION: "compras@persianaspanorama.com",
   STORAGE_BUCKET: "evidencias",
   CATALOGO_TABLE: "catalogo_telas"
 };
@@ -743,6 +751,7 @@ document.getElementById('open-add-modal').addEventListener('click', () => {
   document.getElementById('f-criterio').value = '';
   document.getElementById('f-foto').value = '';
   document.getElementById('f-foto-previews').innerHTML = '';
+  document.getElementById('f-notificar').checked = true;
   document.getElementById('add-error').style.display = 'none';
   pendingEvidenceFiles = [];
   openModal('add-modal-overlay');
@@ -868,7 +877,9 @@ document.getElementById('submit-add').addEventListener('click', async () => {
     showToast('Devolución registrada correctamente.', 'ok');
     loadPendientes();
     loadHistorial();
-    sendNotification([inserted]);
+    if (document.getElementById('f-notificar').checked) {
+      sendNotification([inserted]);
+    }
 
     if (files.length) {
       uploadEvidencia(item, files)
@@ -1090,9 +1101,10 @@ async function loadHistorial(){
 async function sendNotification(rows, manual){
   if (!window.emailjs) return;
   const clasif = rows[0]?.clasificacion || '';
+  const destinatarios = clasif === 'Reclamación' ? CONFIG.EMAILS_RECLAMACION : CONFIG.EMAILS_DEVOLUCION;
   const listado = rows.map(r => `Item ${r.item} · ${r.tela} · ${r.ancho}${r.cantidad ? ' · ' + r.cantidad : ''}`).join('\n');
   const params = {
-    to_email: CONFIG.ALMACEN_EMAIL,
+    to_email: destinatarios,
     cantidad: rows.length,
     listado: listado,
     fecha: new Date().toLocaleString('es-CO'),
