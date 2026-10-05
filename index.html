@@ -394,6 +394,7 @@
     gap:18px;
   }
   @media (max-width:900px){.freq-grid{grid-template-columns:1fr;}}
+  table.ledger tbody tr.pareto-top td{background:#F1F6FC;}
   .freq-rank{
     display:inline-flex;
     align-items:center;
@@ -573,25 +574,13 @@
         </div>
       </div>
 
-      <div class="freq-grid">
-        <div>
-          <h3 style="font-size:14px;margin-bottom:10px;">Telas más frecuentes</h3>
-          <div class="ledger-wrap">
-            <table class="ledger">
-              <thead><tr><th>#</th><th>Tela</th><th>Registros</th></tr></thead>
-              <tbody id="tabla-telas-body"><tr><td colspan="3" class="loading-text">Cargando…</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div>
-          <h3 style="font-size:14px;margin-bottom:10px;">Items más frecuentes</h3>
-          <div class="ledger-wrap">
-            <table class="ledger">
-              <thead><tr><th>#</th><th>Item</th><th>Registros</th></tr></thead>
-              <tbody id="tabla-items-body"><tr><td colspan="3" class="loading-text">Cargando…</td></tr></tbody>
-            </table>
-          </div>
-        </div>
+      <h3 style="font-size:14px;margin-bottom:4px;">Pareto por item y tela (metros)</h3>
+      <p class="helper-text" style="margin-top:0;">Ordenado de mayor a menor cantidad en metros. Las filas resaltadas concentran el 80% del total.</p>
+      <div class="ledger-wrap" style="max-height:520px;overflow-y:auto;">
+        <table class="ledger" style="min-width:560px;">
+          <thead><tr><th>#</th><th>Item</th><th>Nombre de la tela / material</th><th>Cantidad (m)</th><th>% del total</th><th>% acumulado</th></tr></thead>
+          <tbody id="tabla-pareto-body"><tr><td colspan="6" class="loading-text">Cargando…</td></tr></tbody>
+        </table>
       </div>
     </section>
 
@@ -1346,8 +1335,7 @@ async function loadAnalisis(){
     ['chart-clasificacion', 'chart-origen', 'chart-tipo', 'chart-mensual'].forEach(id => {
       if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
     });
-    document.getElementById('tabla-telas-body').innerHTML = '<tr class="empty-row"><td colspan="3">Sin datos.</td></tr>';
-    document.getElementById('tabla-items-body').innerHTML = '<tr class="empty-row"><td colspan="3">Sin datos.</td></tr>';
+    document.getElementById('tabla-pareto-body').innerHTML = '<tr class="empty-row"><td colspan="6">Sin datos.</td></tr>';
     return;
   }
 
@@ -1387,18 +1375,46 @@ async function loadAnalisis(){
   const mesesValues = mesesOrdenados.map(k => porMesMap[k]);
   renderChart('chart-mensual', 'line', mesesLabels, mesesValues, '#1E4E8C');
 
-  // ---- Tabla: telas más frecuentes (top 10) ----
-  document.getElementById('tabla-telas-body').innerHTML = topTelas.slice(0, 10).map(([tela, count], i) => `
-    <tr><td><span class="freq-rank">${i + 1}</span></td><td>${escapeHtml(tela)}</td><td>${count}</td></tr>
-  `).join('');
+  // ---- Tabla Pareto: item + tela, suma de metros, orden descendente ----
+  const paretoMap = {};
+  data.forEach(r => {
+    const metros = parseMetros(r.cantidad);
+    if (!metros) return;
+    const key = (r.item || '') + '||' + (r.tela || '');
+    if (!paretoMap[key]) paretoMap[key] = { item: r.item || '—', tela: r.tela || '—', metros: 0 };
+    paretoMap[key].metros += metros;
+  });
+  const pareto = Object.values(paretoMap).sort((a, b) => b.metros - a.metros);
+  const totalMetros = pareto.reduce((sum, p) => sum + p.metros, 0);
+  const fmt = (n) => n.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // ---- Tabla: items más frecuentes (top 10) ----
-  const itemCount = {};
-  data.forEach(r => { if (r.item) itemCount[r.item] = (itemCount[r.item] || 0) + 1; });
-  const topItems = Object.entries(itemCount).sort((a, b) => b[1] - a[1]).slice(0, 10);
-  document.getElementById('tabla-items-body').innerHTML = topItems.map(([item, count], i) => `
-    <tr><td><span class="freq-rank">${i + 1}</span></td><td>${escapeHtml(item)}</td><td>${count}</td></tr>
-  `).join('');
+  if (!pareto.length) {
+    document.getElementById('tabla-pareto-body').innerHTML = '<tr class="empty-row"><td colspan="6">Aún no hay metros registrados.</td></tr>';
+  } else {
+    let acumulado = 0;
+    document.getElementById('tabla-pareto-body').innerHTML = pareto.map((p, i) => {
+      const antes = acumulado;
+      acumulado += p.metros;
+      const pct = (p.metros / totalMetros) * 100;
+      const pctAcum = (acumulado / totalMetros) * 100;
+      const destacada = antes < totalMetros * 0.8;
+      return `
+        <tr${destacada ? ' class="pareto-top"' : ''}>
+          <td><span class="freq-rank">${i + 1}</span></td>
+          <td>${escapeHtml(p.item)}</td>
+          <td>${escapeHtml(p.tela)}</td>
+          <td>${fmt(p.metros)}</td>
+          <td>${pct.toFixed(1)}%</td>
+          <td>${pctAcum.toFixed(1)}%</td>
+        </tr>`;
+    }).join('');
+  }
+}
+
+function parseMetros(cantidad){
+  if (!cantidad) return 0;
+  const m = String(cantidad).match(/(\d+(?:[.,]\d+)?)\s*m\b/i);
+  return m ? parseFloat(m[1].replace(',', '.')) : 0;
 }
 
 checkSession();
