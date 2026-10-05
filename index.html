@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
   :root{
     --bg:#F3F5F8;
@@ -354,6 +355,56 @@
 
   .helper-text{color:var(--ink-soft);font-size:13px;margin-top:-4px;margin-bottom:18px;}
   .loading-text{color:var(--ink-soft);font-size:14px;padding:20px;}
+
+  /* ---------- Panel de Analista ---------- */
+  .kpi-grid{
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    gap:14px;
+    margin-bottom:24px;
+  }
+  @media (max-width:900px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+  .kpi-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:18px 16px;
+  }
+  .kpi-card .kpi-label{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);font-weight:600;margin-bottom:8px;}
+  .kpi-card .kpi-value{font-family:'IBM Plex Sans',sans-serif;font-size:26px;font-weight:700;color:var(--ink);}
+  .chart-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:18px;
+    margin-bottom:24px;
+  }
+  @media (max-width:900px){.chart-grid{grid-template-columns:1fr;}}
+  .chart-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:20px;
+  }
+  .chart-card h3{font-size:14px;margin-bottom:14px;color:var(--ink);}
+  .chart-card-wide{grid-column:1 / -1;}
+  .chart-card canvas{max-height:260px;}
+  .freq-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:18px;
+  }
+  @media (max-width:900px){.freq-grid{grid-template-columns:1fr;}}
+  .freq-rank{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:22px;height:22px;
+    border-radius:5px;
+    background:var(--accent-soft);
+    color:var(--accent);
+    font-size:12px;
+    font-weight:700;
+  }
 </style>
 </head>
 <body>
@@ -391,6 +442,7 @@
     <button class="tab-btn" data-tab="pendientes-devolucion">Pendientes por traslado</button>
     <button class="tab-btn" data-tab="pendientes-reclamacion">Pendientes por reclamar</button>
     <button class="tab-btn" data-tab="historial">Historial</button>
+    <button class="tab-btn" data-tab="analisis">Analista</button>
   </nav>
 
   <main>
@@ -469,6 +521,77 @@
             <tr><td colspan="13" class="loading-text">Cargando…</td></tr>
           </tbody>
         </table>
+      </div>
+    </section>
+
+    <!-- ---------- TAB 5: ANALISTA ---------- -->
+    <section class="tab-panel" id="panel-analisis">
+      <div class="section-head">
+        <h2>Panel del analista</h2>
+      </div>
+      <p class="helper-text" id="analisis-empty" style="display:none;">Aún no hay registros suficientes para mostrar análisis.</p>
+
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Total registros</div>
+          <div class="kpi-value" id="kpi-total">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Pendientes</div>
+          <div class="kpi-value" id="kpi-pendientes">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Ejecutados</div>
+          <div class="kpi-value" id="kpi-ejecutados">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Tiempo prom. ejecución</div>
+          <div class="kpi-value" id="kpi-promedio">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Tela más repetida</div>
+          <div class="kpi-value" id="kpi-tela-top" style="font-size:16px;">—</div>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-card">
+          <h3>Devolución vs. Reclamación</h3>
+          <canvas id="chart-clasificacion"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Origen</h3>
+          <canvas id="chart-origen"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Tipo (Rollo / Tubo / Retal)</h3>
+          <canvas id="chart-tipo"></canvas>
+        </div>
+        <div class="chart-card chart-card-wide">
+          <h3>Registros por mes</h3>
+          <canvas id="chart-mensual"></canvas>
+        </div>
+      </div>
+
+      <div class="freq-grid">
+        <div>
+          <h3 style="font-size:14px;margin-bottom:10px;">Telas más frecuentes</h3>
+          <div class="ledger-wrap">
+            <table class="ledger">
+              <thead><tr><th>#</th><th>Tela</th><th>Registros</th></tr></thead>
+              <tbody id="tabla-telas-body"><tr><td colspan="3" class="loading-text">Cargando…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <h3 style="font-size:14px;margin-bottom:10px;">Items más frecuentes</h3>
+          <div class="ledger-wrap">
+            <table class="ledger">
+              <thead><tr><th>#</th><th>Item</th><th>Registros</th></tr></thead>
+              <tbody id="tabla-items-body"><tr><td colspan="3" class="loading-text">Cargando…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -712,15 +835,24 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'pendientes-devolucion') loadPendientesPorClasificacion('Devolución');
     if (btn.dataset.tab === 'pendientes-reclamacion') loadPendientesPorClasificacion('Reclamación');
     if (btn.dataset.tab === 'historial') loadHistorial();
+    if (btn.dataset.tab === 'analisis') loadAnalisis();
   });
 });
+
+const ANCHOS_DISPONIBLES = ['1.20', '1.50', '1.80', '2.00', '2.50', '3.00', '6.00'];
 
 function addAnchoRow(value = ''){
   const list = document.getElementById('anchos-list');
   const row = document.createElement('div');
   row.className = 'ancho-row';
+  const options = ANCHOS_DISPONIBLES
+    .map(a => `<option value="${a}" ${a === value ? 'selected' : ''}>${a.replace('.', ',')} m</option>`)
+    .join('');
   row.innerHTML = `
-    <input type="text" inputmode="decimal" class="ancho-input" placeholder="Ej. 2.80" value="${value}" />
+    <select class="ancho-input">
+      <option value="">Selecciona…</option>
+      ${options}
+    </select>
     <button type="button" class="remove-ancho-btn" title="Quitar">&times;</button>
   `;
   row.querySelector('.remove-ancho-btn').addEventListener('click', () => {
@@ -733,8 +865,8 @@ document.getElementById('add-ancho-btn').addEventListener('click', () => addAnch
 
 function collectAnchos(){
   return Array.from(document.querySelectorAll('.ancho-input'))
-    .map(inp => inp.value.trim().replace(',', '.'))
-    .filter(v => v !== '' && !isNaN(parseFloat(v)))
+    .map(sel => sel.value)
+    .filter(v => v !== '')
     .map(v => parseFloat(v).toFixed(2) + ' m');
 }
 
@@ -1133,6 +1265,140 @@ function escapeHtml(str){
   return String(str)
     .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
     .replaceAll('"','&quot;').replaceAll("'",'&#039;');
+}
+
+/* ---------- Panel de Analista ---------- */
+let chartInstances = {};
+
+function formatMsDuration(ms){
+  if (!ms || ms <= 0) return '—';
+  const totalMin = Math.floor(ms / 60000);
+  const days = Math.floor(totalMin / 1440);
+  const hours = Math.floor((totalMin % 1440) / 60);
+  const mins = totalMin % 60;
+  let parts = [];
+  if (days) parts.push(days + 'd');
+  if (hours) parts.push(hours + 'h');
+  if (!days && mins) parts.push(mins + 'm');
+  return parts.length ? parts.join(' ') : '<1m';
+}
+
+function renderChart(canvasId, type, labels, values, colors){
+  const canvas = document.getElementById(canvasId);
+  if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+  chartInstances[canvasId] = new Chart(canvas, {
+    type,
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors,
+        borderRadius: type === 'bar' ? 4 : 0,
+        borderWidth: type === 'doughnut' ? 2 : 0,
+        borderColor: '#FFFFFF'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { display: type !== 'bar' && type !== 'line', position: 'bottom', labels: { boxWidth: 12, font: { size: 11.5 } } }
+      },
+      scales: (type === 'bar' || type === 'line') ? {
+        y: { beginAtZero: true, ticks: { precision: 0 } }
+      } : undefined
+    }
+  });
+}
+
+async function loadAnalisis(){
+  const { data, error } = await sb.from('devoluciones').select('*');
+  if (error) { showToast('No se pudo cargar el análisis.', 'error'); return; }
+
+  const emptyMsg = document.getElementById('analisis-empty');
+  if (!data.length) {
+    emptyMsg.style.display = 'block';
+  } else {
+    emptyMsg.style.display = 'none';
+  }
+
+  // ---- KPIs ----
+  const total = data.length;
+  const pendientes = data.filter(r => r.estado === 'pendiente').length;
+  const ejecutados = data.filter(r => r.estado === 'ejecutado').length;
+
+  const tiempos = data
+    .filter(r => r.fecha_ejecucion)
+    .map(r => new Date(r.fecha_ejecucion) - new Date(r.fecha_registro));
+  const promedioMs = tiempos.length ? tiempos.reduce((a, b) => a + b, 0) / tiempos.length : 0;
+
+  const telaCount = {};
+  data.forEach(r => { if (r.tela) telaCount[r.tela] = (telaCount[r.tela] || 0) + 1; });
+  const topTelas = Object.entries(telaCount).sort((a, b) => b[1] - a[1]);
+
+  document.getElementById('kpi-total').textContent = total;
+  document.getElementById('kpi-pendientes').textContent = pendientes;
+  document.getElementById('kpi-ejecutados').textContent = ejecutados;
+  document.getElementById('kpi-promedio').textContent = formatMsDuration(promedioMs);
+  document.getElementById('kpi-tela-top').textContent = topTelas.length ? `${topTelas[0][0]} (${topTelas[0][1]})` : '—';
+
+  if (!data.length) {
+    ['chart-clasificacion', 'chart-origen', 'chart-tipo', 'chart-mensual'].forEach(id => {
+      if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+    });
+    document.getElementById('tabla-telas-body').innerHTML = '<tr class="empty-row"><td colspan="3">Sin datos.</td></tr>';
+    document.getElementById('tabla-items-body').innerHTML = '<tr class="empty-row"><td colspan="3">Sin datos.</td></tr>';
+    return;
+  }
+
+  // ---- Clasificación ----
+  const devoluciones = data.filter(r => r.clasificacion === 'Devolución').length;
+  const reclamaciones = data.filter(r => r.clasificacion === 'Reclamación').length;
+  renderChart('chart-clasificacion', 'doughnut', ['Devolución', 'Reclamación'], [devoluciones, reclamaciones], ['#166534', '#B42318']);
+
+  // ---- Origen ----
+  const nacional = data.filter(r => r.origen === 'Nacional').length;
+  const importado = data.filter(r => r.origen === 'Importado').length;
+  const sinOrigen = data.filter(r => !r.origen).length;
+  renderChart('chart-origen', 'doughnut', ['Nacional', 'Importado', 'Sin dato'], [nacional, importado, sinOrigen], ['#1E4E8C', '#A85D00', '#9AA7B8']);
+
+  // ---- Tipo (extraído del campo cantidad: "Rollo · 12.50 m") ----
+  const tipoCount = {};
+  data.forEach(r => {
+    if (r.cantidad) {
+      const t = r.cantidad.split('·')[0].trim();
+      if (t) tipoCount[t] = (tipoCount[t] || 0) + 1;
+    }
+  });
+  renderChart('chart-tipo', 'bar', Object.keys(tipoCount), Object.values(tipoCount), '#1E4E8C');
+
+  // ---- Registros por mes ----
+  const porMesMap = {};
+  data.forEach(r => {
+    const d = new Date(r.fecha_registro);
+    const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    porMesMap[key] = (porMesMap[key] || 0) + 1;
+  });
+  const mesesOrdenados = Object.keys(porMesMap).sort();
+  const mesesLabels = mesesOrdenados.map(k => {
+    const [y, m] = k.split('-');
+    return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('es-CO', { month: 'short', year: '2-digit' });
+  });
+  const mesesValues = mesesOrdenados.map(k => porMesMap[k]);
+  renderChart('chart-mensual', 'line', mesesLabels, mesesValues, '#1E4E8C');
+
+  // ---- Tabla: telas más frecuentes (top 10) ----
+  document.getElementById('tabla-telas-body').innerHTML = topTelas.slice(0, 10).map(([tela, count], i) => `
+    <tr><td><span class="freq-rank">${i + 1}</span></td><td>${escapeHtml(tela)}</td><td>${count}</td></tr>
+  `).join('');
+
+  // ---- Tabla: items más frecuentes (top 10) ----
+  const itemCount = {};
+  data.forEach(r => { if (r.item) itemCount[r.item] = (itemCount[r.item] || 0) + 1; });
+  const topItems = Object.entries(itemCount).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  document.getElementById('tabla-items-body').innerHTML = topItems.map(([item, count], i) => `
+    <tr><td><span class="freq-rank">${i + 1}</span></td><td>${escapeHtml(item)}</td><td>${count}</td></tr>
+  `).join('');
 }
 
 checkSession();
