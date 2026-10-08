@@ -269,6 +269,7 @@
   .clasif-pill{font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:100px;letter-spacing:.01em;}
   .clasif-devolucion{background:#E3F3E7;color:#166534;}
   .clasif-reclamacion{background:#FBE7E4;color:#B42318;}
+  .clasif-ambas{background:#EEE8F7;color:#5B3A91;}
   .check-cell{display:flex;align-items:center;gap:8px;font-size:13.5px;}
   .check-cell input[type=checkbox]{width:17px;height:17px;accent-color:var(--ok);cursor:pointer;}
   .obs-cell{max-width:280px;font-size:13px;color:var(--ink-soft);white-space:pre-line;}
@@ -598,6 +599,7 @@
         <option value="">Selecciona…</option>
         <option value="Devolución">Devolución</option>
         <option value="Reclamación">Reclamación</option>
+        <option value="Devolución y Reclamación">Devolución y Reclamación (ambas)</option>
       </select>
     </div>
     <div class="field">
@@ -701,6 +703,7 @@ if (window.emailjs) emailjs.init({ publicKey: CONFIG.EMAILJS_PUBLIC_KEY });
 
 let pendingEvidenceFiles = [];
 let catalogo = [];
+const ES_AMBAS = 'Devolución y Reclamación';
 
 async function loadCatalogo(){
   const { data, error } = await sb.from(CONFIG.CATALOGO_TABLE).select('item, tela');
@@ -960,7 +963,7 @@ document.getElementById('submit-add').addEventListener('click', async () => {
   errEl.style.display = 'none';
 
   if (!clasificacion) {
-    errEl.textContent = 'Selecciona si es Devolución o Reclamación.';
+    errEl.textContent = 'Selecciona si es Devolución, Reclamación o ambas.';
     errEl.style.display = 'block';
     return;
   }
@@ -990,7 +993,8 @@ document.getElementById('submit-add').addEventListener('click', async () => {
         origen: origen || null,
         defecto: defecto || null,
         criterio_uso: criterio || null,
-        foto_urls: [], estado: 'pendiente'
+        foto_urls: [], estado: 'pendiente',
+        ...(clasificacion === ES_AMBAS ? { estado_reclamacion: 'pendiente' } : {})
       })
       .select()
       .single();
@@ -1057,14 +1061,12 @@ document.getElementById('submit-query').addEventListener('click', async () => {
     <div class="query-result-item">
       <div class="qr-top">
         <span>Item ${escapeHtml(row.item)} · ${escapeHtml(row.tela)}</span>
-        <span class="status-pill ${row.estado === 'pendiente' ? 'status-pendiente' : 'status-ejecutado'}">
-          ${row.estado === 'pendiente' ? 'Pendiente por mover a bodega' : 'Ejecutado'}
-        </span>
+        ${estadoQuery(row)}
       </div>
       <div class="qr-meta">
-        ${row.clasificacion ? `<span class="clasif-pill ${row.clasificacion === 'Reclamación' ? 'clasif-reclamacion' : 'clasif-devolucion'}">${escapeHtml(row.clasificacion)}</span> · ` : ''}
+        ${row.clasificacion ? `${clasifPill(row.clasificacion)} · ` : ''}
         Ancho: ${row.ancho} · Cantidad: ${row.cantidad || '—'} · Registrado: ${formatDateTime(row.fecha_registro)}
-      ${row.estado === 'ejecutado' ? ' · Ejecutado: ' + formatDateTime(row.fecha_ejecucion) : ''}</div>
+      ${row.estado === 'ejecutado' ? ' · Ejecutado: ' + formatDateTime(row.fecha_ejecucion) : ''}${row.fecha_ejecucion_reclamacion ? ' · Reclamación resuelta: ' + formatDateTime(row.fecha_ejecucion_reclamacion) : ''}</div>
       ${row.origen ? `<div class="qr-extra">Origen: ${escapeHtml(row.origen)}</div>` : ''}
       ${row.defecto ? `<div class="qr-extra">Defecto: ${escapeHtml(row.defecto)}</div>` : ''}
       ${row.criterio_uso ? `<div class="qr-extra">Criterio de uso: ${escapeHtml(row.criterio_uso)}</div>` : ''}
@@ -1096,17 +1098,29 @@ const PENDIENTES_CONFIG = {
   }
 };
 
+async function fetchPendientes(clasificacion){
+  if (clasificacion === 'Devolución') {
+    return sb.from('devoluciones').select('*')
+      .eq('estado', 'pendiente')
+      .in('clasificacion', ['Devolución', ES_AMBAS])
+      .order('fecha_registro', { ascending: true });
+  }
+  const res = await sb.from('devoluciones').select('*')
+    .or('estado.eq.pendiente,estado_reclamacion.eq.pendiente')
+    .order('fecha_registro', { ascending: true });
+  if (res.error) return res;
+  res.data = res.data.filter(r =>
+    (r.clasificacion === 'Reclamación' && r.estado === 'pendiente') ||
+    (r.clasificacion === ES_AMBAS && r.estado_reclamacion === 'pendiente'));
+  return res;
+}
+
 async function loadPendientesPorClasificacion(clasificacion){
   const cfg = PENDIENTES_CONFIG[clasificacion];
   const tbody = document.getElementById(cfg.tbodyId);
   tbody.innerHTML = `<tr><td colspan="${cfg.colspan}" class="loading-text">Cargando…</td></tr>`;
 
-  const { data, error } = await sb
-    .from('devoluciones')
-    .select('*')
-    .eq('estado', 'pendiente')
-    .eq('clasificacion', clasificacion)
-    .order('fecha_registro', { ascending: true });
+  const { data, error } = await fetchPendientes(clasificacion);
 
   if (error) {
     tbody.innerHTML = `<tr><td colspan="${cfg.colspan}" class="loading-text">Error al cargar.</td></tr>`;
@@ -1120,9 +1134,11 @@ async function loadPendientesPorClasificacion(clasificacion){
     return;
   }
 
+  const etiquetaAmbas = clasificacion === 'Devolución' ? '+ Reclamación' : '+ Devolución';
+
   tbody.innerHTML = data.map(row => `
     <tr>
-      <td>${escapeHtml(row.item)}</td>
+      <td>${escapeHtml(row.item)}${row.clasificacion === ES_AMBAS ? ` <span class="clasif-pill clasif-ambas">${etiquetaAmbas}</span>` : ''}</td>
       <td>${escapeHtml(row.tela)}</td>
       <td>${row.ancho}</td>
       <td>${row.cantidad || '—'}</td>
@@ -1133,7 +1149,7 @@ async function loadPendientesPorClasificacion(clasificacion){
       <td>${formatDateTime(row.fecha_registro)}</td>
       <td>
         <label class="check-cell">
-          <input type="checkbox" data-id="${row.id}" class="ejecutar-check" />
+          <input type="checkbox" data-id="${row.id}" data-clasif="${escapeHtml(row.clasificacion || '')}" class="ejecutar-check" />
           ${cfg.checkLabel}
         </label>
       </td>
@@ -1145,10 +1161,12 @@ async function loadPendientesPorClasificacion(clasificacion){
       if (!e.target.checked) return;
       e.target.disabled = true;
       const id = e.target.dataset.id;
-      const { error } = await sb
-        .from('devoluciones')
-        .update({ estado: 'ejecutado', fecha_ejecucion: new Date().toISOString() })
-        .eq('id', id);
+      const ahora = new Date().toISOString();
+      // En un registro "ambas", cada pestaña cierra su propia parte
+      const patch = (clasificacion === 'Reclamación' && e.target.dataset.clasif === ES_AMBAS)
+        ? { estado_reclamacion: 'ejecutado', fecha_ejecucion_reclamacion: ahora }
+        : { estado: 'ejecutado', fecha_ejecucion: ahora };
+      const { error } = await sb.from('devoluciones').update(patch).eq('id', id);
       if (error) {
         showToast('No se pudo actualizar el estado.', 'error');
         e.target.checked = false;
@@ -1168,15 +1186,10 @@ function loadPendientes(){
 }
 
 async function notificarPendientes(clasificacion){
-  const { data, error } = await sb
-    .from('devoluciones')
-    .select('*')
-    .eq('estado', 'pendiente')
-    .eq('clasificacion', clasificacion)
-    .order('fecha_registro', { ascending: true });
+  const { data, error } = await fetchPendientes(clasificacion);
   if (error) { showToast('No se pudo consultar pendientes.', 'error'); return; }
   if (!data.length) { showToast('No hay pendientes para notificar.', 'info'); return; }
-  sendNotification(data, true);
+  sendNotification(data, true, clasificacion);
 }
 
 document.getElementById('notify-devolucion-btn').addEventListener('click', () => notificarPendientes('Devolución'));
@@ -1204,27 +1217,36 @@ async function loadHistorial(){
     <tr>
       <td>${escapeHtml(row.item)}</td>
       <td>${escapeHtml(row.tela)}</td>
-      <td>${row.clasificacion ? `<span class="clasif-pill ${row.clasificacion === 'Reclamación' ? 'clasif-reclamacion' : 'clasif-devolucion'}">${escapeHtml(row.clasificacion)}</span>` : '—'}</td>
+      <td>${row.clasificacion ? `${clasifPill(row.clasificacion)}` : '—'}</td>
       <td>${row.ancho}</td>
       <td>${row.cantidad || '—'}</td>
       <td>${row.origen ? `<span class="origen-pill">${escapeHtml(row.origen)}</span>` : '—'}</td>
       <td class="obs-cell">${row.defecto ? escapeHtml(row.defecto) : '—'}</td>
       <td class="obs-cell">${row.criterio_uso ? escapeHtml(row.criterio_uso) : '—'}</td>
-      <td><span class="status-pill ${row.estado === 'pendiente' ? 'status-pendiente' : 'status-ejecutado'}">
-        ${row.estado === 'pendiente' ? 'Pendiente' : 'Ejecutado'}
-      </span></td>
+      <td>${historialEstado(row)}</td>
       <td>${formatDateTime(row.fecha_registro)}</td>
-      <td>${row.fecha_ejecucion ? formatDateTime(row.fecha_ejecucion) : '—'}</td>
-      <td>${formatDuration(row.fecha_registro, row.fecha_ejecucion)}</td>
+      <td>${historialEjecutado(row)}</td>
+      <td>${historialTiempo(row)}</td>
       <td>${renderFotos(row)}</td>
     </tr>
   `).join('');
 }
 
-async function sendNotification(rows, manual){
+function destinatariosPara(clasif){
+  if (clasif === 'Reclamación') return CONFIG.EMAILS_RECLAMACION;
+  if (clasif === ES_AMBAS) {
+    // ambas: la unión de las dos listas, sin repetir
+    const todos = (CONFIG.EMAILS_DEVOLUCION + ',' + CONFIG.EMAILS_RECLAMACION)
+      .split(',').map(e => e.trim()).filter(Boolean);
+    return Array.from(new Set(todos)).join(', ');
+  }
+  return CONFIG.EMAILS_DEVOLUCION;
+}
+
+async function sendNotification(rows, manual, contexto){
   if (!window.emailjs) return;
-  const clasif = rows[0]?.clasificacion || '';
-  const destinatarios = clasif === 'Reclamación' ? CONFIG.EMAILS_RECLAMACION : CONFIG.EMAILS_DEVOLUCION;
+  const clasif = contexto || rows[0]?.clasificacion || '';
+  const destinatarios = destinatariosPara(clasif);
   const listado = rows.map(r => `Item ${r.item} · ${r.tela} · ${r.ancho}${r.cantidad ? ' · ' + r.cantidad : ''}`).join('\n');
   const params = {
     to_email: destinatarios,
@@ -1250,6 +1272,50 @@ function renderFotos(row){
   return urls.map((u, i) =>
     `<a href="${u}" target="_blank" rel="noopener">Evid. ${i + 1}</a>`
   ).join(' · ');
+}
+
+function clasifPill(c){
+  const cls = c === 'Reclamación' ? 'clasif-reclamacion' : (c === ES_AMBAS ? 'clasif-ambas' : 'clasif-devolucion');
+  return `<span class="clasif-pill ${cls}">${escapeHtml(c)}</span>`;
+}
+
+function pillEstado(pendiente, texto){
+  return `<span class="status-pill ${pendiente ? 'status-pendiente' : 'status-ejecutado'}">${texto}</span>`;
+}
+
+function estadoQuery(row){
+  if (row.clasificacion === ES_AMBAS) {
+    return '<span>' +
+      pillEstado(row.estado === 'pendiente', 'Traslado: ' + (row.estado === 'pendiente' ? 'pendiente' : 'ejecutado')) + ' ' +
+      pillEstado(row.estado_reclamacion === 'pendiente', 'Reclamación: ' + (row.estado_reclamacion === 'pendiente' ? 'pendiente' : 'resuelta')) +
+      '</span>';
+  }
+  return pillEstado(row.estado === 'pendiente', row.estado === 'pendiente' ? 'Pendiente por mover a bodega' : 'Ejecutado');
+}
+
+function historialEstado(row){
+  if (row.clasificacion === ES_AMBAS) {
+    const trasladado = row.estado !== 'pendiente';
+    const reclamado = row.estado_reclamacion !== 'pendiente';
+    if (trasladado && reclamado) return pillEstado(false, 'Completo');
+    if (trasladado) return pillEstado(true, 'Trasladado · falta reclamar');
+    if (reclamado) return pillEstado(true, 'Reclamado · falta trasladar');
+    return pillEstado(true, 'Falta trasladar y reclamar');
+  }
+  return pillEstado(row.estado === 'pendiente', row.estado === 'pendiente' ? 'Pendiente' : 'Ejecutado');
+}
+
+function historialEjecutado(row){
+  const f = (iso) => iso ? formatDateTime(iso) : '—';
+  if (row.clasificacion === ES_AMBAS) return `T: ${f(row.fecha_ejecucion)}<br>R: ${f(row.fecha_ejecucion_reclamacion)}`;
+  return f(row.fecha_ejecucion);
+}
+
+function historialTiempo(row){
+  if (row.clasificacion === ES_AMBAS) {
+    return `T: ${formatDuration(row.fecha_registro, row.fecha_ejecucion)}<br>R: ${formatDuration(row.fecha_registro, row.fecha_ejecucion_reclamacion)}`;
+  }
+  return formatDuration(row.fecha_registro, row.fecha_ejecucion);
 }
 
 function escapeHtml(str){
@@ -1315,12 +1381,15 @@ async function loadAnalisis(){
 
   // ---- KPIs ----
   const total = data.length;
-  const pendientes = data.filter(r => r.estado === 'pendiente').length;
-  const ejecutados = data.filter(r => r.estado === 'ejecutado').length;
+  const esPendiente = (r) => r.estado === 'pendiente' || r.estado_reclamacion === 'pendiente';
+  const pendientes = data.filter(esPendiente).length;
+  const ejecutados = total - pendientes;
 
-  const tiempos = data
-    .filter(r => r.fecha_ejecucion)
-    .map(r => new Date(r.fecha_ejecucion) - new Date(r.fecha_registro));
+  const tiempos = [];
+  data.forEach(r => {
+    if (r.fecha_ejecucion) tiempos.push(new Date(r.fecha_ejecucion) - new Date(r.fecha_registro));
+    if (r.fecha_ejecucion_reclamacion) tiempos.push(new Date(r.fecha_ejecucion_reclamacion) - new Date(r.fecha_registro));
+  });
   const promedioMs = tiempos.length ? tiempos.reduce((a, b) => a + b, 0) / tiempos.length : 0;
 
   const telaCount = {};
@@ -1344,7 +1413,8 @@ async function loadAnalisis(){
   // ---- Clasificación ----
   const devoluciones = data.filter(r => r.clasificacion === 'Devolución').length;
   const reclamaciones = data.filter(r => r.clasificacion === 'Reclamación').length;
-  renderChart('chart-clasificacion', 'doughnut', ['Devolución', 'Reclamación'], [devoluciones, reclamaciones], ['#166534', '#B42318']);
+  const ambas = data.filter(r => r.clasificacion === ES_AMBAS).length;
+  renderChart('chart-clasificacion', 'doughnut', ['Devolución', 'Reclamación', 'Ambas'], [devoluciones, reclamaciones, ambas], ['#166534', '#B42318', '#5B3A91']);
 
   // ---- Origen ----
   const nacional = data.filter(r => r.origen === 'Nacional').length;
