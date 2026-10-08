@@ -613,7 +613,7 @@
     <datalist id="dl-items"></datalist>
     <datalist id="dl-telas"></datalist>
     <div class="field">
-      <label>Ancho(s) (m)</label>
+      <label>Ancho(s) (m) — opcional</label>
       <div id="anchos-list"></div>
       <button type="button" class="btn btn-ghost btn-small" id="add-ancho-btn" style="border:1px solid var(--accent);">+ Agregar otro ancho</button>
     </div>
@@ -967,8 +967,8 @@ document.getElementById('submit-add').addEventListener('click', async () => {
     errEl.style.display = 'block';
     return;
   }
-  if (!item || !tela || !anchos.length) {
-    errEl.textContent = 'Completa item, tela y al menos un ancho.';
+  if (!item || !tela) {
+    errEl.textContent = 'Completa item y tela.';
     errEl.style.display = 'block';
     return;
   }
@@ -1065,7 +1065,7 @@ document.getElementById('submit-query').addEventListener('click', async () => {
       </div>
       <div class="qr-meta">
         ${row.clasificacion ? `${clasifPill(row.clasificacion)} · ` : ''}
-        Ancho: ${row.ancho} · Cantidad: ${row.cantidad || '—'} · Registrado: ${formatDateTime(row.fecha_registro)}
+        Ancho: ${row.ancho || '—'} · Cantidad: ${row.cantidad || '—'} · Registrado: ${formatDateTime(row.fecha_registro)}
       ${row.estado === 'ejecutado' ? ' · Ejecutado: ' + formatDateTime(row.fecha_ejecucion) : ''}${row.fecha_ejecucion_reclamacion ? ' · Reclamación resuelta: ' + formatDateTime(row.fecha_ejecucion_reclamacion) : ''}</div>
       ${row.origen ? `<div class="qr-extra">Origen: ${escapeHtml(row.origen)}</div>` : ''}
       ${row.defecto ? `<div class="qr-extra">Defecto: ${escapeHtml(row.defecto)}</div>` : ''}
@@ -1140,7 +1140,7 @@ async function loadPendientesPorClasificacion(clasificacion){
     <tr>
       <td>${escapeHtml(row.item)}${row.clasificacion === ES_AMBAS ? ` <span class="clasif-pill clasif-ambas">${etiquetaAmbas}</span>` : ''}</td>
       <td>${escapeHtml(row.tela)}</td>
-      <td>${row.ancho}</td>
+      <td>${row.ancho || '—'}</td>
       <td>${row.cantidad || '—'}</td>
       <td>${row.origen ? `<span class="origen-pill">${escapeHtml(row.origen)}</span>` : '—'}</td>
       <td class="obs-cell">${row.defecto ? escapeHtml(row.defecto) : '—'}</td>
@@ -1218,7 +1218,7 @@ async function loadHistorial(){
       <td>${escapeHtml(row.item)}</td>
       <td>${escapeHtml(row.tela)}</td>
       <td>${row.clasificacion ? `${clasifPill(row.clasificacion)}` : '—'}</td>
-      <td>${row.ancho}</td>
+      <td>${row.ancho || '—'}</td>
       <td>${row.cantidad || '—'}</td>
       <td>${row.origen ? `<span class="origen-pill">${escapeHtml(row.origen)}</span>` : '—'}</td>
       <td class="obs-cell">${row.defecto ? escapeHtml(row.defecto) : '—'}</td>
@@ -1247,7 +1247,7 @@ async function sendNotification(rows, manual, contexto){
   if (!window.emailjs) return;
   const clasif = contexto || rows[0]?.clasificacion || '';
   const destinatarios = destinatariosPara(clasif);
-  const listado = rows.map(r => `Item ${r.item} · ${r.tela} · ${r.ancho}${r.cantidad ? ' · ' + r.cantidad : ''}`).join('\n');
+  const listado = rows.map(r => [`Item ${r.item}`, r.tela, r.ancho, r.cantidad].filter(Boolean).join(' · ')).join('\n');
   const params = {
     to_email: destinatarios,
     cantidad: rows.length,
