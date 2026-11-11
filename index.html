@@ -327,6 +327,24 @@
     border:1px solid var(--line);
     background:#000;
   }
+  .evid-list{display:flex;flex-direction:column;gap:6px;}
+  .evid-item{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:6px 10px;border:1px solid var(--line);border-radius:4px;font-size:13px;
+  }
+  .evid-item a{color:var(--accent);text-decoration:none;font-weight:500;}
+  .evid-item a:hover{text-decoration:underline;}
+  .edit-btn{border:1px solid var(--accent) !important;white-space:nowrap;}
+  .seguimiento-select{
+    font-size:12.5px;font-weight:600;
+    padding:5px 8px;border-radius:100px;
+    border:1px solid var(--line);cursor:pointer;
+    min-width:190px;
+  }
+  .seguimiento-select:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .seg-sin-reclamar{background:#F1F3F6;color:var(--ink-soft);}
+  .seg-en-proceso{background:var(--warn-bg);color:var(--warn);border-color:#EBD3A8;}
+  .seg-reclamado{background:var(--ok-bg);color:var(--ok);border-color:#BFE0C8;}
   .query-results{margin-top:18px;border-top:1px solid var(--line);padding-top:14px;}
   .query-result-item{
     padding:12px 0;
@@ -516,11 +534,11 @@
         <table class="ledger">
           <thead>
             <tr>
-              <th>Item</th><th>Tela</th><th>Clasificación</th><th>Ancho</th><th>Cantidad</th><th>Origen</th><th>Defecto</th><th>Criterio de uso</th><th>Estado</th><th>Registrado</th><th>Ejecutado</th><th>Tiempo</th><th>Evidencia</th>
+              <th>Item</th><th>Tela</th><th>Clasificación</th><th>Ancho</th><th>Cantidad</th><th>Origen</th><th>Defecto</th><th>Criterio de uso</th><th>Estado</th><th>Registrado</th><th>Ejecutado</th><th>Tiempo</th><th>Evidencia</th><th>Acciones</th><th>Seguimiento reclamo</th>
             </tr>
           </thead>
           <tbody id="historial-tbody">
-            <tr><td colspan="13" class="loading-text">Cargando…</td></tr>
+            <tr><td colspan="15" class="loading-text">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -647,7 +665,7 @@
       <input type="text" id="f-criterio" placeholder="Ej. Reutilizable en otro pedido, apto solo para muestras…" />
     </div>
     <div class="field">
-      <label for="f-foto">Evidencia — fotos o videos (máximo 5)</label>
+      <label for="f-foto">Evidencia — fotos o videos (máximo 10)</label>
       <input type="file" id="f-foto" accept="image/*,video/*" multiple />
       <div id="f-foto-previews" class="thumb-preview-grid"></div>
     </div>
@@ -674,6 +692,35 @@
     </div>
     <button class="btn" id="submit-query">Buscar</button>
     <div class="query-results" id="query-results"></div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: MODIFICAR ===================== -->
+<div class="modal-overlay" id="edit-modal-overlay">
+  <div class="modal">
+    <button class="modal-close" data-close="edit-modal-overlay">&times;</button>
+    <h2>Modificar registro</h2>
+    <p class="helper-text" id="edit-resumen" style="margin-top:-8px;"></p>
+    <div class="field">
+      <label for="e-defecto">Defecto</label>
+      <textarea id="e-defecto" rows="4" placeholder="Describe el defecto…"></textarea>
+      <p class="helper-text" style="margin:4px 0 0;">Para agregar un nuevo defecto, escríbelo en una línea nueva.</p>
+    </div>
+    <div class="field">
+      <label for="e-criterio">Criterio de uso</label>
+      <input type="text" id="e-criterio" placeholder="Ej. Reutilizable en otro pedido…" />
+    </div>
+    <div class="field">
+      <label>Evidencia actual</label>
+      <div id="e-evid-actual" class="evid-list"></div>
+    </div>
+    <div class="field">
+      <label for="e-foto" id="e-foto-label">Agregar evidencia</label>
+      <input type="file" id="e-foto" accept="image/*,video/*" multiple />
+      <div id="e-foto-previews" class="thumb-preview-grid"></div>
+    </div>
+    <p class="error-text" id="edit-error" style="display:none;"></p>
+    <button class="btn btn-block" id="submit-edit">Guardar cambios</button>
   </div>
 </div>
 
@@ -704,7 +751,7 @@ if (window.emailjs) emailjs.init({ publicKey: CONFIG.EMAILJS_PUBLIC_KEY });
 let pendingEvidenceFiles = [];
 let catalogo = [];
 const ES_AMBAS = 'Devolución y Reclamación';
-const MAX_EVIDENCIAS = 5;
+const MAX_EVIDENCIAS = 10;
 
 async function loadCatalogo(){
   const { data, error } = await sb.from(CONFIG.CATALOGO_TABLE).select('item, tela');
@@ -1198,7 +1245,7 @@ document.getElementById('notify-reclamacion-btn').addEventListener('click', () =
 
 async function loadHistorial(){
   const tbody = document.getElementById('historial-tbody');
-  tbody.innerHTML = '<tr><td colspan="13" class="loading-text">Cargando…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="15" class="loading-text">Cargando…</td></tr>';
 
   const { data, error } = await sb
     .from('devoluciones')
@@ -1206,13 +1253,15 @@ async function loadHistorial(){
     .order('fecha_registro', { ascending: false });
 
   if (error) {
-    tbody.innerHTML = '<tr><td colspan="13" class="loading-text">Error al cargar.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="15" class="loading-text">Error al cargar.</td></tr>';
     return;
   }
   if (!data.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="13">Aún no hay registros.</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="15">Aún no hay registros.</td></tr>';
     return;
   }
+
+  historialRows = Object.fromEntries(data.map(r => [r.id, r]));
 
   tbody.innerHTML = data.map(row => `
     <tr>
@@ -1229,9 +1278,173 @@ async function loadHistorial(){
       <td>${historialEjecutado(row)}</td>
       <td>${historialTiempo(row)}</td>
       <td>${renderFotos(row)}</td>
+      <td><button type="button" class="btn btn-small btn-ghost edit-btn" data-id="${row.id}">Modificar</button></td>
+      <td>${renderSeguimiento(row)}</td>
     </tr>
   `).join('');
+
+  tbody.querySelectorAll('.edit-btn').forEach(b => {
+    b.addEventListener('click', () => abrirEdicion(b.dataset.id));
+  });
+
+  tbody.querySelectorAll('.seguimiento-select').forEach(sel => {
+    sel.dataset.prev = sel.value;
+    sel.addEventListener('change', async () => {
+      const nuevo = sel.value;
+      sel.disabled = true;
+      const { error } = await sb.from('devoluciones')
+        .update({ seguimiento_reclamo: nuevo })
+        .eq('id', sel.dataset.id);
+      sel.disabled = false;
+      if (error) {
+        console.error(error);
+        sel.value = sel.dataset.prev;
+        aplicarClaseSeguimiento(sel);
+        showToast('No se pudo actualizar el seguimiento.', 'error');
+        return;
+      }
+      sel.dataset.prev = nuevo;
+      aplicarClaseSeguimiento(sel);
+      if (historialRows[sel.dataset.id]) historialRows[sel.dataset.id].seguimiento_reclamo = nuevo;
+      showToast(`Seguimiento actualizado: ${nuevo}.`, 'ok');
+    });
+  });
 }
+
+/* ---------- Seguimiento del reclamo ---------- */
+const SEGUIMIENTO_OPCIONES = ['Sin reclamar', 'En proceso de reclamación', 'Reclamado'];
+
+function claseSeguimiento(valor){
+  if (valor === 'Reclamado') return 'seg-reclamado';
+  if (valor === 'En proceso de reclamación') return 'seg-en-proceso';
+  return 'seg-sin-reclamar';
+}
+
+function aplicarClaseSeguimiento(sel){
+  sel.classList.remove('seg-sin-reclamar', 'seg-en-proceso', 'seg-reclamado');
+  sel.classList.add(claseSeguimiento(sel.value));
+}
+
+function renderSeguimiento(row){
+  const actual = SEGUIMIENTO_OPCIONES.includes(row.seguimiento_reclamo) ? row.seguimiento_reclamo : 'Sin reclamar';
+  const opciones = SEGUIMIENTO_OPCIONES
+    .map(o => `<option value="${o}" ${o === actual ? 'selected' : ''}>${o}</option>`)
+    .join('');
+  return `<select class="seguimiento-select ${claseSeguimiento(actual)}" data-id="${row.id}">${opciones}</select>`;
+}
+
+/* ---------- Modificar registro desde el historial ---------- */
+let historialRows = {};
+let editState = { id: null, urls: [], newFiles: [] };
+
+function pintarPreviews(container, files){
+  container.innerHTML = '';
+  files.forEach(file => {
+    const el = document.createElement(file.type.startsWith('video/') ? 'video' : 'img');
+    el.src = URL.createObjectURL(file);
+    if (el.tagName === 'VIDEO') el.muted = true;
+    container.appendChild(el);
+  });
+}
+
+function cupoEdicion(){
+  return Math.max(0, MAX_EVIDENCIAS - editState.urls.length);
+}
+
+function actualizarCupoEdicion(){
+  const cupo = cupoEdicion();
+  const input = document.getElementById('e-foto');
+  const label = document.getElementById('e-foto-label');
+  input.disabled = cupo === 0;
+  label.textContent = cupo === 0
+    ? `Ya tiene el máximo de ${MAX_EVIDENCIAS} evidencias. Quita alguna para agregar otra.`
+    : `Agregar evidencia (puedes cargar ${cupo} más)`;
+  if (editState.newFiles.length > cupo) {
+    editState.newFiles = editState.newFiles.slice(0, cupo);
+    pintarPreviews(document.getElementById('e-foto-previews'), editState.newFiles);
+  }
+}
+
+function renderEvidenciaActual(){
+  const cont = document.getElementById('e-evid-actual');
+  if (!editState.urls.length) {
+    cont.innerHTML = '<span class="helper-text" style="margin:0;">Sin evidencia.</span>';
+  } else {
+    cont.innerHTML = editState.urls.map((u, i) => `
+      <div class="evid-item">
+        <a href="${escapeHtml(u)}" target="_blank" rel="noopener">Evidencia ${i + 1}</a>
+        <button type="button" class="remove-ancho-btn" data-idx="${i}" title="Quitar">&times;</button>
+      </div>`).join('');
+    cont.querySelectorAll('[data-idx]').forEach(b => {
+      b.addEventListener('click', () => {
+        editState.urls.splice(Number(b.dataset.idx), 1);
+        renderEvidenciaActual();
+      });
+    });
+  }
+  actualizarCupoEdicion();
+}
+
+function abrirEdicion(id){
+  const row = historialRows[id];
+  if (!row) return;
+  const urls = (row.foto_urls && row.foto_urls.length) ? row.foto_urls : (row.foto_url ? [row.foto_url] : []);
+  editState = { id, urls: [...urls], newFiles: [] };
+  document.getElementById('edit-resumen').textContent = `Item ${row.item} · ${row.tela}`;
+  document.getElementById('e-defecto').value = row.defecto || '';
+  document.getElementById('e-criterio').value = row.criterio_uso || '';
+  document.getElementById('e-foto').value = '';
+  document.getElementById('e-foto-previews').innerHTML = '';
+  document.getElementById('edit-error').style.display = 'none';
+  renderEvidenciaActual();
+  openModal('edit-modal-overlay');
+}
+
+document.getElementById('e-foto').addEventListener('change', (e) => {
+  const files = Array.from(e.target.files || []);
+  const cupo = cupoEdicion();
+  const errEl = document.getElementById('edit-error');
+  if (files.length > cupo) {
+    errEl.textContent = `Solo puedes agregar ${cupo} archivo(s) más (máximo ${MAX_EVIDENCIAS} en total). Se tomaron los primeros ${cupo}.`;
+    errEl.style.display = 'block';
+  } else {
+    errEl.style.display = 'none';
+  }
+  editState.newFiles = files.slice(0, cupo);
+  pintarPreviews(document.getElementById('e-foto-previews'), editState.newFiles);
+});
+
+document.getElementById('submit-edit').addEventListener('click', async () => {
+  const row = historialRows[editState.id];
+  if (!row) return;
+  const errEl = document.getElementById('edit-error');
+  const btn = document.getElementById('submit-edit');
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = editState.newFiles.length ? 'Subiendo evidencia…' : 'Guardando…';
+
+  try {
+    const nuevas = editState.newFiles.length ? await uploadEvidencia(row.item, editState.newFiles) : [];
+    const { error } = await sb.from('devoluciones').update({
+      defecto: document.getElementById('e-defecto').value.trim() || null,
+      criterio_uso: document.getElementById('e-criterio').value.trim() || null,
+      foto_urls: [...editState.urls, ...nuevas]
+    }).eq('id', editState.id);
+    if (error) throw error;
+
+    closeModal('edit-modal-overlay');
+    showToast('Registro actualizado correctamente.', 'ok');
+    loadHistorial();
+    loadPendientes();
+  } catch (err) {
+    console.error(err);
+    errEl.textContent = 'No se pudieron guardar los cambios: ' + (err.message || 'error desconocido');
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar cambios';
+  }
+});
 
 function destinatariosPara(clasif){
   if (clasif === 'Reclamación') return CONFIG.EMAILS_RECLAMACION;
