@@ -369,9 +369,10 @@
     .historial .h-obs{max-width:none;}
   }
   .seguimiento-select:focus{outline:2px solid var(--accent);outline-offset:1px;}
-  .seg-sin-reclamar{background:#F1F3F6;color:var(--ink-soft);}
-  .seg-en-proceso{background:var(--warn-bg);color:var(--warn);border-color:#EBD3A8;}
-  .seg-reclamado{background:var(--ok-bg);color:var(--ok);border-color:#BFE0C8;}
+  .seg-pendiente{background:#F1F3F6;color:var(--ink-soft);}
+  .seg-reclamacion{background:var(--warn-bg);color:var(--warn);border-color:#EBD3A8;}
+  .seg-baja{background:var(--danger-bg);color:var(--danger);border-color:#F2C4BE;}
+  .seg-disponible{background:var(--ok-bg);color:var(--ok);border-color:#BFE0C8;}
   .query-results{margin-top:18px;border-top:1px solid var(--line);padding-top:14px;}
   .query-result-item{
     padding:12px 0;
@@ -561,7 +562,7 @@
         <table class="ledger historial">
           <thead>
             <tr>
-              <th>Item / Tela</th><th>Medidas</th><th>Defecto / Uso</th><th>Estado</th><th>Fechas</th><th>Evidencia</th><th>Acciones</th><th>Seguimiento reclamo</th>
+              <th>Item / Tela</th><th>Medidas</th><th>Defecto / Uso</th><th>Estado</th><th>Fechas</th><th>Evidencia</th><th>Acciones</th><th>Situación del material</th>
             </tr>
           </thead>
           <tbody id="historial-tbody">
@@ -1314,7 +1315,7 @@ async function loadHistorial(){
       </td>
       <td data-label="Evidencia" class="h-small">${renderFotos(row)}</td>
       <td data-label="Acciones"><button type="button" class="btn btn-small btn-ghost edit-btn" data-id="${row.id}">Modificar</button></td>
-      <td data-label="Seguimiento reclamo">${renderSeguimiento(row)}</td>
+      <td data-label="Situación del material">${renderSeguimiento(row)}</td>
     </tr>
   `).join('');
 
@@ -1335,37 +1336,47 @@ async function loadHistorial(){
         console.error(error);
         sel.value = sel.dataset.prev;
         aplicarClaseSeguimiento(sel);
-        showToast('No se pudo actualizar el seguimiento.', 'error');
+        showToast('No se pudo actualizar la situación del material.', 'error');
         return;
       }
       sel.dataset.prev = nuevo;
       aplicarClaseSeguimiento(sel);
       if (historialRows[sel.dataset.id]) historialRows[sel.dataset.id].seguimiento_reclamo = nuevo;
-      showToast(`Seguimiento actualizado: ${nuevo}.`, 'ok');
+      showToast(`Situación actualizada: ${nuevo}.`, 'ok');
     });
   });
 }
 
-/* ---------- Seguimiento del reclamo ---------- */
-const SEGUIMIENTO_OPCIONES = ['Sin reclamar', 'En proceso de reclamación', 'Reclamado'];
+/* ---------- Situación del material ---------- */
+const SITUACION_DEFAULT = 'Pendiente';
+const SITUACIONES = {
+  'Pendiente':      { clase: 'seg-pendiente',   desc: 'Aún no se ha definido qué pasa con el material.' },
+  'En reclamación': { clase: 'seg-reclamacion', desc: 'El material presenta novedades y está pendiente de respuesta o reposición por parte del proveedor.' },
+  'Dado de baja':   { clase: 'seg-baja',        desc: 'El material fue dado de baja del sistema y ya no hace parte de las existencias físicas ni contables.' },
+  'Disponible':     { clase: 'seg-disponible',  desc: 'El material fue verificado, se encuentra en buen estado y está listo para su uso o despacho.' }
+};
+const SEGUIMIENTO_OPCIONES = Object.keys(SITUACIONES);
 
 function claseSeguimiento(valor){
-  if (valor === 'Reclamado') return 'seg-reclamado';
-  if (valor === 'En proceso de reclamación') return 'seg-en-proceso';
-  return 'seg-sin-reclamar';
+  return SITUACIONES[valor] ? SITUACIONES[valor].clase : 'seg-pendiente';
 }
 
 function aplicarClaseSeguimiento(sel){
-  sel.classList.remove('seg-sin-reclamar', 'seg-en-proceso', 'seg-reclamado');
+  sel.classList.remove(...Object.values(SITUACIONES).map(o => o.clase));
   sel.classList.add(claseSeguimiento(sel.value));
+  sel.title = SITUACIONES[sel.value] ? SITUACIONES[sel.value].desc : '';
 }
 
 function renderSeguimiento(row){
-  const actual = SEGUIMIENTO_OPCIONES.includes(row.seguimiento_reclamo) ? row.seguimiento_reclamo : 'Sin reclamar';
-  const opciones = SEGUIMIENTO_OPCIONES
-    .map(o => `<option value="${o}" ${o === actual ? 'selected' : ''}>${o}</option>`)
+  const guardado = row.seguimiento_reclamo;
+  const actual = guardado || SITUACION_DEFAULT;
+  // Si el registro tiene un valor antiguo que ya no está en la lista, se muestra igual para no perderlo
+  const lista = SEGUIMIENTO_OPCIONES.includes(actual) ? SEGUIMIENTO_OPCIONES : [actual, ...SEGUIMIENTO_OPCIONES];
+  const opciones = lista
+    .map(o => `<option value="${escapeHtml(o)}" title="${SITUACIONES[o] ? escapeHtml(SITUACIONES[o].desc) : 'Valor anterior'}" ${o === actual ? 'selected' : ''}>${escapeHtml(o)}</option>`)
     .join('');
-  return `<select class="seguimiento-select ${claseSeguimiento(actual)}" data-id="${row.id}">${opciones}</select>`;
+  const desc = SITUACIONES[actual] ? SITUACIONES[actual].desc : '';
+  return `<select class="seguimiento-select ${claseSeguimiento(actual)}" data-id="${row.id}" title="${escapeHtml(desc)}">${opciones}</select>`;
 }
 
 /* ---------- Modificar registro desde el historial ---------- */
