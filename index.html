@@ -647,7 +647,7 @@
       <input type="text" id="f-criterio" placeholder="Ej. Reutilizable en otro pedido, apto solo para muestras…" />
     </div>
     <div class="field">
-      <label for="f-foto">Evidencia — fotos o videos (máximo 3)</label>
+      <label for="f-foto">Evidencia — fotos o videos (máximo 5)</label>
       <input type="file" id="f-foto" accept="image/*,video/*" multiple />
       <div id="f-foto-previews" class="thumb-preview-grid"></div>
     </div>
@@ -704,6 +704,7 @@ if (window.emailjs) emailjs.init({ publicKey: CONFIG.EMAILJS_PUBLIC_KEY });
 let pendingEvidenceFiles = [];
 let catalogo = [];
 const ES_AMBAS = 'Devolución y Reclamación';
+const MAX_EVIDENCIAS = 5;
 
 async function loadCatalogo(){
   const { data, error } = await sb.from(CONFIG.CATALOGO_TABLE).select('item, tela');
@@ -888,14 +889,14 @@ document.getElementById('f-foto').addEventListener('change', (e) => {
   const errEl = document.getElementById('add-error');
   const preview = document.getElementById('f-foto-previews');
 
-  if (files.length > 3) {
-    errEl.textContent = 'Máximo 3 archivos. Se tomaron solo los primeros 3.';
+  if (files.length > MAX_EVIDENCIAS) {
+    errEl.textContent = `Máximo ${MAX_EVIDENCIAS} archivos. Se tomaron solo los primeros ${MAX_EVIDENCIAS}.`;
     errEl.style.display = 'block';
   } else {
     errEl.style.display = 'none';
   }
 
-  pendingEvidenceFiles = files.slice(0, 3);
+  pendingEvidenceFiles = files.slice(0, MAX_EVIDENCIAS);
   preview.innerHTML = '';
   pendingEvidenceFiles.forEach(file => {
     if (file.type.startsWith('video/')) {
