@@ -181,7 +181,7 @@
     font-weight:600;
   }
 
-  main{padding:32px 28px 60px;max-width:1500px;margin:0 auto;}
+  main{padding:32px 28px 60px;max-width:1720px;margin:0 auto;}
   .tab-panel{display:none;}
   .tab-panel.active{display:block;}
 
@@ -340,6 +340,33 @@
     padding:5px 8px;border-radius:100px;
     border:1px solid var(--line);cursor:pointer;
     min-width:190px;
+  }
+  /* ---------- Historial compacto (sin barra horizontal) ---------- */
+  table.ledger.historial{min-width:0;font-size:13px;}
+  table.ledger.historial th{padding:10px 12px;}
+  table.ledger.historial td{padding:11px 12px;vertical-align:top;}
+  .historial .h-item{font-weight:600;}
+  .historial .h-small{font-size:12.5px;line-height:1.55;}
+  .historial .h-k{color:var(--ink-soft);}
+  .historial .h-muted{color:var(--ink-soft);font-style:italic;}
+  .historial .h-gap{margin-top:6px;}
+  .historial .h-obs{max-width:320px;color:var(--ink-soft);}
+  .historial .h-def{white-space:pre-line;color:var(--ink);}
+  .historial .status-pill{display:inline-block;line-height:1.35;}
+  .historial .seguimiento-select{min-width:0;width:100%;max-width:210px;}
+  @media (max-width:1000px){
+    table.ledger.historial thead{display:none;}
+    table.ledger.historial, table.ledger.historial tbody,
+    table.ledger.historial tr, table.ledger.historial td{display:block;width:100%;}
+    table.ledger.historial tbody tr{border-bottom:1px solid var(--line);padding:8px 0;}
+    table.ledger.historial td{border:none;padding:6px 16px;}
+    table.ledger.historial td[data-label]::before{
+      content:attr(data-label);
+      display:block;margin-bottom:3px;
+      font-size:11px;font-weight:600;letter-spacing:.04em;
+      text-transform:uppercase;color:var(--ink-soft);
+    }
+    .historial .h-obs{max-width:none;}
   }
   .seguimiento-select:focus{outline:2px solid var(--accent);outline-offset:1px;}
   .seg-sin-reclamar{background:#F1F3F6;color:var(--ink-soft);}
@@ -531,14 +558,14 @@
         <h2>Historial completo</h2>
       </div>
       <div class="ledger-wrap">
-        <table class="ledger">
+        <table class="ledger historial">
           <thead>
             <tr>
-              <th>Item</th><th>Tela</th><th>Clasificación</th><th>Ancho</th><th>Cantidad</th><th>Origen</th><th>Defecto</th><th>Criterio de uso</th><th>Estado</th><th>Registrado</th><th>Ejecutado</th><th>Tiempo</th><th>Evidencia</th><th>Acciones</th><th>Seguimiento reclamo</th>
+              <th>Item / Tela</th><th>Medidas</th><th>Defecto / Uso</th><th>Estado</th><th>Fechas</th><th>Evidencia</th><th>Acciones</th><th>Seguimiento reclamo</th>
             </tr>
           </thead>
           <tbody id="historial-tbody">
-            <tr><td colspan="15" class="loading-text">Cargando…</td></tr>
+            <tr><td colspan="8" class="loading-text">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -1245,7 +1272,7 @@ document.getElementById('notify-reclamacion-btn').addEventListener('click', () =
 
 async function loadHistorial(){
   const tbody = document.getElementById('historial-tbody');
-  tbody.innerHTML = '<tr><td colspan="15" class="loading-text">Cargando…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="8" class="loading-text">Cargando…</td></tr>';
 
   const { data, error } = await sb
     .from('devoluciones')
@@ -1253,11 +1280,11 @@ async function loadHistorial(){
     .order('fecha_registro', { ascending: false });
 
   if (error) {
-    tbody.innerHTML = '<tr><td colspan="15" class="loading-text">Error al cargar.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="loading-text">Error al cargar.</td></tr>';
     return;
   }
   if (!data.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="15">Aún no hay registros.</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Aún no hay registros.</td></tr>';
     return;
   }
 
@@ -1265,21 +1292,29 @@ async function loadHistorial(){
 
   tbody.innerHTML = data.map(row => `
     <tr>
-      <td>${escapeHtml(row.item)}</td>
-      <td>${escapeHtml(row.tela)}</td>
-      <td>${row.clasificacion ? `${clasifPill(row.clasificacion)}` : '—'}</td>
-      <td>${row.ancho || '—'}</td>
-      <td>${row.cantidad || '—'}</td>
-      <td>${row.origen ? `<span class="origen-pill">${escapeHtml(row.origen)}</span>` : '—'}</td>
-      <td class="obs-cell">${row.defecto ? escapeHtml(row.defecto) : '—'}</td>
-      <td class="obs-cell">${row.criterio_uso ? escapeHtml(row.criterio_uso) : '—'}</td>
-      <td>${historialEstado(row)}</td>
-      <td>${formatDateTime(row.fecha_registro)}</td>
-      <td>${historialEjecutado(row)}</td>
-      <td>${historialTiempo(row)}</td>
-      <td>${renderFotos(row)}</td>
-      <td><button type="button" class="btn btn-small btn-ghost edit-btn" data-id="${row.id}">Modificar</button></td>
-      <td>${renderSeguimiento(row)}</td>
+      <td data-label="Item / Tela">
+        <div class="h-item">Item ${escapeHtml(row.item)}</div>
+        <div>${escapeHtml(row.tela)}</div>
+        ${row.clasificacion ? `<div class="h-gap">${clasifPill(row.clasificacion)}</div>` : ''}
+      </td>
+      <td data-label="Medidas" class="h-small">
+        <div><span class="h-k">Ancho:</span> ${row.ancho || '—'}</div>
+        <div><span class="h-k">Cant.:</span> ${row.cantidad || '—'}</div>
+        ${row.origen ? `<div class="h-gap"><span class="origen-pill">${escapeHtml(row.origen)}</span></div>` : ''}
+      </td>
+      <td data-label="Defecto / Uso" class="h-small h-obs">
+        <div class="h-def">${row.defecto ? escapeHtml(row.defecto) : '<span class="h-muted">Sin defecto</span>'}</div>
+        ${row.criterio_uso ? `<div class="h-gap"><span class="h-k">Uso:</span> ${escapeHtml(row.criterio_uso)}</div>` : ''}
+      </td>
+      <td data-label="Estado">${historialEstado(row)}</td>
+      <td data-label="Fechas" class="h-small">
+        <div><span class="h-k">Reg.:</span> ${formatDateTime(row.fecha_registro)}</div>
+        <div><span class="h-k">Ejec.:</span> ${historialEjecutado(row)}</div>
+        <div><span class="h-k">Tiempo:</span> ${historialTiempo(row)}</div>
+      </td>
+      <td data-label="Evidencia" class="h-small">${renderFotos(row)}</td>
+      <td data-label="Acciones"><button type="button" class="btn btn-small btn-ghost edit-btn" data-id="${row.id}">Modificar</button></td>
+      <td data-label="Seguimiento reclamo">${renderSeguimiento(row)}</td>
     </tr>
   `).join('');
 
