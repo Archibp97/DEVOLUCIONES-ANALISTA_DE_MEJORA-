@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#F3F5F8;
@@ -453,6 +454,18 @@
     font-size:12px;
     font-weight:700;
   }
+  /* ---------- RQT a pedir ---------- */
+  .rqt-file{font-size:13.5px;margin-top:4px;max-width:100%;}
+  .rqt-status{font-size:13px;color:var(--ink-soft);margin:10px 0 0;}
+  .rqt-resumen{
+    background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--warn);
+    border-radius:7px;padding:14px 18px;margin:22px 0 16px;font-size:14px;
+  }
+  .rqt-resumen.ok{border-left-color:var(--ok);}
+  .rqt-resumen strong{font-family:'IBM Plex Sans',sans-serif;}
+  .rqt-acciones{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  .rqt-ordenes{font-size:12.5px;color:var(--ink-soft);max-width:360px;}
+
 </style>
 </head>
 <body>
@@ -491,6 +504,7 @@
     <button class="tab-btn" data-tab="pendientes-reclamacion">Pendientes por reclamar</button>
     <button class="tab-btn" data-tab="historial">Historial</button>
     <button class="tab-btn" data-tab="analisis">Analista</button>
+    <button class="tab-btn" data-tab="rqt">RQT a pedir</button>
   </nav>
 
   <main>
@@ -628,6 +642,46 @@
           <thead><tr><th>#</th><th>Item</th><th>Nombre de la tela / material</th><th>Cantidad (m)</th><th>% del total</th><th>% acumulado</th></tr></thead>
           <tbody id="tabla-pareto-body"><tr><td colspan="6" class="loading-text">Cargando…</td></tr></tbody>
         </table>
+      </div>
+    </section>
+
+    <!-- ---------- TAB 6: RQT A PEDIR ---------- -->
+    <section class="tab-panel" id="panel-rqt">
+      <div class="section-head">
+        <h2>RQT a pedir</h2>
+      </div>
+      <p class="helper-text">Carga la plantilla de corte de tela y aquí verás las telas (columna ID TELAS) que <strong>no</strong> están en el supermercado de alta rotación.</p>
+
+      <div class="action-grid">
+        <div class="action-card">
+          <h2>1. Plantilla de corte de tela</h2>
+          <p>Selecciona uno o varios archivos de Excel de corte de tela.</p>
+          <input type="file" id="rqt-corte-file" class="rqt-file" accept=".xlsx,.xls,.xlsm" multiple />
+          <p class="rqt-status" id="rqt-corte-status">Ningún archivo cargado.</p>
+        </div>
+        <div class="action-card">
+          <h2>2. Lista del supermercado</h2>
+          <p>Ya viene cargada. Si el supermercado cambia, sube el Excel nuevo (se leen las hojas que tengan la columna ITEM).</p>
+          <input type="file" id="rqt-super-file" class="rqt-file" accept=".xlsx,.xls,.xlsm" />
+          <p class="rqt-status" id="rqt-super-status"></p>
+          <button type="button" class="btn btn-small btn-ghost" id="rqt-super-reset" style="border:1px solid var(--accent);margin-top:10px;">Restablecer lista original</button>
+        </div>
+      </div>
+
+      <div id="rqt-resultado" style="display:none;">
+        <div class="rqt-resumen" id="rqt-resumen"></div>
+        <div class="rqt-acciones">
+          <button type="button" class="btn btn-small" id="rqt-export">Descargar Excel</button>
+          <button type="button" class="btn btn-small btn-ghost" id="rqt-copiar" style="border:1px solid var(--accent);">Copiar lista</button>
+        </div>
+        <div class="ledger-wrap">
+          <table class="ledger" style="min-width:760px;">
+            <thead>
+              <tr><th>Item</th><th>Tela</th><th>Cortes</th><th>Metros (alto tela)</th><th>Ancho tela máx.</th><th>Órdenes</th></tr>
+            </thead>
+            <tbody id="rqt-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -1748,6 +1802,287 @@ function parseMetros(cantidad){
   const m = String(cantidad).match(/(\d+(?:[.,]\d+)?)\s*m\b/i);
   return m ? parseFloat(m[1].replace(',', '.')) : 0;
 }
+
+/* ---------- RQT a pedir ---------- */
+const RQT_SUPER_DEFAULT = [
+  {"item": "20013", "tela": "BK 183 ALABASTER BOUCLE", "anchos": "1.83"},
+  {"item": "20015", "tela": "BK 183 ALABASTER MOIRE", "anchos": "1.83"},
+  {"item": "20017", "tela": "BK 183 BLANCO BOUCLE", "anchos": "1.83"},
+  {"item": "20018", "tela": "BK 300 BLANCO MATE", "anchos": "3"},
+  {"item": "20019", "tela": "BK 183 BLANCO MATE", "anchos": "1.83"},
+  {"item": "20021", "tela": "BK 183 CHAMPAÑA BOUCLE", "anchos": "1.83"},
+  {"item": "20022", "tela": "BK 183 CHAMPAÑA MATE", "anchos": "1.83"},
+  {"item": "20023", "tela": "BK 183 CHAMPAÑA MOIRE", "anchos": "1.83"},
+  {"item": "20025", "tela": "BK 183 BLANCO CONCHA NACAR", "anchos": "1.83"},
+  {"item": "20026", "tela": "BK 183 GRIS MOIRE", "anchos": "1.83"},
+  {"item": "20027", "tela": "BK 183 GRIS MATE", "anchos": "1.83"},
+  {"item": "20162", "tela": "SCREEN BLANCO 1% - 40", "anchos": "2,5 - 3"},
+  {"item": "20195", "tela": "SCREEN JACQUARD SPLENDID BLANCO", "anchos": "3"},
+  {"item": "20203", "tela": "SCREEN PLATA 1% - 40", "anchos": "2,5 - 3"},
+  {"item": "20208", "tela": "SCREEN VAINILLA 1% - 40", "anchos": "2,5 - 3"},
+  {"item": "20322", "tela": "SHEER SCREEN BLANCO", "anchos": "1,8 - 2,5 - 3"},
+  {"item": "20323", "tela": "SHEER SCREEN GRIS", "anchos": "1,8 - 2,5 - 3"},
+  {"item": "20324", "tela": "SHEER SCREEN IVORY", "anchos": "1,8 - 2,5 - 3"},
+  {"item": "20328", "tela": "SHEER SCREEN PLATA", "anchos": "1,8 - 2,5"},
+  {"item": "20441", "tela": "SHEER SCREEN DARK GREY", "anchos": "1.8"},
+  {"item": "20604", "tela": "SHEER SCREEN ARENA", "anchos": "1.8"},
+  {"item": "20606", "tela": "SHEER SCREEN KHAKI", "anchos": "1.8"},
+  {"item": "20720", "tela": "SCREEN BLANCO 5% - 30", "anchos": "2,5 - 3"},
+  {"item": "20721", "tela": "SCREEN VAINILLA 5% - 30", "anchos": "2,5 - 3"},
+  {"item": "20722", "tela": "SCREEN PLATA 5% - 30", "anchos": "2,5 - 3"},
+  {"item": "20730", "tela": "BK 240 BLANCO MATE", "anchos": "2.44"},
+  {"item": "20731", "tela": "BK 240 GRIS MATE", "anchos": "2.44"},
+  {"item": "20732", "tela": "BK 240 CHAMPAÑA MATE", "anchos": "2.44"},
+  {"item": "20736", "tela": "SCREEN JACQUARD TWEED BLANCO", "anchos": "2.5"},
+  {"item": "20740", "tela": "BK BASIC BLANCO MATE", "anchos": "1.83"},
+  {"item": "20741", "tela": "BK BASIC BEIGE MATE", "anchos": "1.83"},
+  {"item": "20742", "tela": "BK BASIC GRIS MATE", "anchos": "1.83"},
+  {"item": "20803", "tela": "SCREEN BASIC BLANCO 10% - 30", "anchos": "2.5"},
+  {"item": "20804", "tela": "SCREEN BASIC VAINILLA 10% - 30", "anchos": "2.5"},
+  {"item": "20805", "tela": "SCREEN BASIC PLATA 10% - 30", "anchos": "2.5"},
+  {"item": "20894", "tela": "SCREEN BASIC 5% - 30 BLANCO", "anchos": "2,5 - 3"},
+  {"item": "20895", "tela": "SCREEN BASIC 5% - 30VAINILLA", "anchos": "2,5 - 3"},
+  {"item": "20896", "tela": "SCREEN BASIC 5% - 30 PLATA", "anchos": "2,5 - 3"},
+  {"item": "21071", "tela": "SCREEN BASIC 3% BLANCO", "anchos": "2.5"},
+  {"item": "21072", "tela": "SCREEN BASIC 3% VAILINLLA", "anchos": "2.5"},
+  {"item": "21073", "tela": "SCREEN BASIC 3% PLATA", "anchos": "2.5"},
+  {"item": "21094", "tela": "SCREEN JACQUARD TWEED IVORY", "anchos": "2.5"},
+  {"item": "21095", "tela": "SCREEN JACQUARD TWEED PLATA", "anchos": "1,8 - 2,5"},
+  {"item": "21096", "tela": "SHEER SCREEN BENDOR BLANCO", "anchos": "1,8 - 2,5"},
+  {"item": "21097", "tela": "SHEER SCREEN BENDOR BEIGE", "anchos": "1,8 - 2,5"},
+  {"item": "21098", "tela": "SHEER SCREENBENDOR IVORY", "anchos": "1,8 - 2,5"},
+  {"item": "21099", "tela": "SHEER SCREEN BENDOR PLATA", "anchos": "1,8 - 2,5"},
+  {"item": "21100", "tela": "SHEER SCREEN BENDOR GRIS", "anchos": "1,8 - 2,5"},
+  {"item": "21101", "tela": "SHEER SCREEN BENDOR CREMA", "anchos": "1,8 - 2,5"},
+  {"item": "21102", "tela": "SHEER SCREEN BENDOR CENIZA", "anchos": "1,8 - 2,5"},
+  {"item": "21103", "tela": "SHEER SCREEN BENDOR PIEDRA", "anchos": "1,8 - 2,5"},
+  {"item": "21104", "tela": "SHEER SCREEN CARDO BLANCO", "anchos": "1,8 - 2,5"},
+  {"item": "21105", "tela": "SHEER SCREEN CARDO BEIGE", "anchos": "1,8 - 2,5"},
+  {"item": "21106", "tela": "SHEER SCREEN CARDO PLATA", "anchos": "1,8 - 2,5"},
+  {"item": "21107", "tela": "SHEER SCREEN CARDO GRIS", "anchos": "1,8 - 2,5"},
+  {"item": "21119", "tela": "SHEER SCREEN AURA BLANCO", "anchos": "1,8 - 2,5"},
+  {"item": "21120", "tela": "SHEER SCREEN AURA BEIGE", "anchos": "1,8 - 2,5"},
+  {"item": "21121", "tela": "SHEER SCREEN AURA GRIS", "anchos": "1,8 - 2,5"},
+  {"item": "21122", "tela": "SHEER SCREEN AURA MOCCA", "anchos": "1,8 - 2,5"},
+  {"item": "21123", "tela": "SHEER SCREEN AURA PIEDRA", "anchos": "1,8 - 2,5"},
+  {"item": "21125", "tela": "TELA BK 240 BEIGE MATE", "anchos": "2.4"},
+  {"item": "21150", "tela": "Sheer Screen Aura Beige Arena", "anchos": "1,8-2,50"},
+  {"item": "21151", "tela": "Sheer Screen Aura Gris Niebla", "anchos": "1,8-2,50"},
+  {"item": "21152", "tela": "Sheer Screen Aura Gris Urbano", "anchos": "1,8-2,50"},
+  {"item": "21153", "tela": "Sheer Screen Aura Gloss Blanco", "anchos": "1,8 -2,50"},
+  {"item": "21154", "tela": "Sheer Screen Aura Gloss Beige", "anchos": "1,8 -2,50"},
+  {"item": "21155", "tela": "Sheer Screen Aura Gloss Gris", "anchos": "1,8 -2,50"}
+];
+const RQT_SUPER_KEY = 'rqt_supermercado_v1';
+let rqtFaltantes = [];
+
+function rqtNormItem(v){
+  return String(v == null ? '' : v).trim().replace(/\.0+$/, '');
+}
+function rqtNormHeader(v){
+  return String(v == null ? '' : v).trim().toUpperCase().replace(/\s+/g, ' ');
+}
+function rqtNum(v){
+  if (typeof v === 'number') return v;
+  const n = parseFloat(String(v == null ? '' : v).replace(',', '.'));
+  return isNaN(n) ? 0 : n;
+}
+
+function rqtGetSupermercado(){
+  try {
+    const s = localStorage.getItem(RQT_SUPER_KEY);
+    if (s) {
+      const d = JSON.parse(s);
+      if (d && Array.isArray(d.items) && d.items.length) return d;
+    }
+  } catch (e) {}
+  return { items: RQT_SUPER_DEFAULT, fecha: null };
+}
+
+function rqtPintarEstadoSuper(){
+  const s = rqtGetSupermercado();
+  document.getElementById('rqt-super-status').textContent = s.fecha
+    ? `Lista cargada el ${formatDateTime(s.fecha)} · ${s.items.length} ítems.`
+    : `Lista original · ${s.items.length} ítems.`;
+}
+
+async function rqtLeerLibro(file){
+  const buf = await file.arrayBuffer();
+  return XLSX.read(buf, { type: 'array' });
+}
+
+// Supermercado: toma todas las hojas con encabezado ITEM (columnas ITEM, ANCHOS, TELA)
+document.getElementById('rqt-super-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const wb = await rqtLeerLibro(file);
+    const mapa = {};
+    wb.SheetNames.forEach(nombre => {
+      const filas = XLSX.utils.sheet_to_json(wb.Sheets[nombre], { header: 1, defval: '' });
+      const hIdx = filas.findIndex(f => f.some(c => rqtNormHeader(c) === 'ITEM'));
+      if (hIdx < 0) return;
+      const h = filas[hIdx].map(rqtNormHeader);
+      const cItem = h.indexOf('ITEM'), cTela = h.indexOf('TELA'), cAnchos = h.indexOf('ANCHOS');
+      filas.slice(hIdx + 1).forEach(f => {
+        const item = rqtNormItem(f[cItem]);
+        if (!/^\d+$/.test(item)) return;
+        mapa[item] = {
+          item,
+          tela: cTela >= 0 ? String(f[cTela]).replace(/\s+/g, ' ').trim() : '',
+          anchos: cAnchos >= 0 ? String(f[cAnchos]) : ''
+        };
+      });
+    });
+    const items = Object.values(mapa);
+    if (!items.length) {
+      showToast('No encontré una columna ITEM con números en ese archivo.', 'error');
+      return;
+    }
+    try { localStorage.setItem(RQT_SUPER_KEY, JSON.stringify({ items, fecha: new Date().toISOString() })); } catch (err) {}
+    rqtPintarEstadoSuper();
+    showToast(`Supermercado actualizado: ${items.length} ítems.`, 'ok');
+    if (rqtUltimasFilas.length) rqtCalcular();
+  } catch (err) {
+    console.error(err);
+    showToast('No se pudo leer el archivo del supermercado.', 'error');
+  } finally {
+    e.target.value = '';
+  }
+});
+
+document.getElementById('rqt-super-reset').addEventListener('click', () => {
+  try { localStorage.removeItem(RQT_SUPER_KEY); } catch (err) {}
+  rqtPintarEstadoSuper();
+  showToast('Se restableció la lista original del supermercado.', 'ok');
+  if (rqtUltimasFilas.length) rqtCalcular();
+});
+
+// Plantilla de corte: busca la fila de encabezados que tenga "ID TELAS" (o "ID TELA")
+let rqtUltimasFilas = [];
+
+document.getElementById('rqt-corte-file').addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files || []);
+  if (!files.length) return;
+  const filas = [];
+  let sinColumna = [];
+  for (const file of files) {
+    try {
+      const wb = await rqtLeerLibro(file);
+      let encontrada = false;
+      wb.SheetNames.forEach(nombre => {
+        const datos = XLSX.utils.sheet_to_json(wb.Sheets[nombre], { header: 1, defval: '' });
+        const hIdx = datos.findIndex(f => f.some(c => ['ID TELAS', 'ID TELA'].includes(rqtNormHeader(c))));
+        if (hIdx < 0) return;
+        encontrada = true;
+        const h = datos[hIdx].map(rqtNormHeader);
+        const cId = h.findIndex(c => c === 'ID TELAS' || c === 'ID TELA');
+        const cTela = h.indexOf('TELA');
+        const cAnchoTela = h.indexOf('ANCHO TELA');
+        const cAltoTela = cAnchoTela >= 0 ? h.indexOf('ALTO', cAnchoTela + 1) : -1; // el ALTO que va después de ANCHO TELA
+        const cOrden = h.indexOf('ORDEN');
+        const cPedido = h.indexOf('PEDIDO');
+        datos.slice(hIdx + 1).forEach(f => {
+          const item = rqtNormItem(f[cId]);
+          if (!item) return;
+          filas.push({
+            item,
+            tela: cTela >= 0 ? String(f[cTela]).trim() : '',
+            ancho: cAnchoTela >= 0 ? rqtNum(f[cAnchoTela]) : 0,
+            alto: cAltoTela >= 0 ? rqtNum(f[cAltoTela]) : 0,
+            orden: cOrden >= 0 ? String(f[cOrden]).trim() : '',
+            pedido: cPedido >= 0 ? String(f[cPedido]).trim() : ''
+          });
+        });
+      });
+      if (!encontrada) sinColumna.push(file.name);
+    } catch (err) {
+      console.error(err);
+      sinColumna.push(file.name);
+    }
+  }
+  rqtUltimasFilas = filas;
+  document.getElementById('rqt-corte-status').textContent =
+    `${files.length} archivo(s) · ${filas.length} cortes leídos.` +
+    (sinColumna.length ? ` Sin columna ID TELAS: ${sinColumna.join(', ')}.` : '');
+  e.target.value = '';
+  rqtCalcular();
+});
+
+function rqtCalcular(){
+  const superSet = new Set(rqtGetSupermercado().items.map(x => rqtNormItem(x.item)));
+  const grupos = {};
+  const itemsTotales = new Set();
+  rqtUltimasFilas.forEach(f => {
+    itemsTotales.add(f.item);
+    if (superSet.has(f.item)) return;
+    if (!grupos[f.item]) grupos[f.item] = { item: f.item, tela: f.tela, cortes: 0, metros: 0, anchoMax: 0, ordenes: new Set() };
+    const g = grupos[f.item];
+    g.cortes++;
+    g.metros += f.alto;
+    if (f.ancho > g.anchoMax) g.anchoMax = f.ancho;
+    if (f.orden) g.ordenes.add(f.orden);
+  });
+  rqtFaltantes = Object.values(grupos).sort((a, b) => b.metros - a.metros);
+
+  const fmt = (n) => n.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const resumen = document.getElementById('rqt-resumen');
+  document.getElementById('rqt-resultado').style.display = 'block';
+
+  if (!rqtFaltantes.length) {
+    resumen.className = 'rqt-resumen ok';
+    resumen.innerHTML = `<strong>No hay telas por pedir.</strong>`;
+    document.getElementById('rqt-tbody').innerHTML = '<tr class="empty-row"><td colspan="6">Nada por pedir.</td></tr>';
+    return;
+  }
+
+  const totalCortes = rqtFaltantes.reduce((s, g) => s + g.cortes, 0);
+  resumen.className = 'rqt-resumen';
+  resumen.innerHTML = `<strong>${rqtFaltantes.length} ${rqtFaltantes.length === 1 ? 'tela' : 'telas'} por pedir</strong> (${totalCortes} cortes).`;
+
+  document.getElementById('rqt-tbody').innerHTML = rqtFaltantes.map(g => `
+    <tr>
+      <td><strong>${escapeHtml(g.item)}</strong></td>
+      <td>${escapeHtml(g.tela)}</td>
+      <td>${g.cortes}</td>
+      <td>${fmt(g.metros)} m</td>
+      <td>${g.anchoMax ? fmt(g.anchoMax) + ' m' : '—'}</td>
+      <td class="rqt-ordenes">${escapeHtml([...g.ordenes].join(', ')) || '—'}</td>
+    </tr>`).join('');
+}
+
+document.getElementById('rqt-export').addEventListener('click', () => {
+  if (!rqtFaltantes.length) { showToast('No hay ítems por pedir.', 'info'); return; }
+  const filas = rqtFaltantes.map(g => ({
+    'ITEM': Number(g.item) || g.item,
+    'TELA': g.tela,
+    'CORTES': g.cortes,
+    'METROS (ALTO TELA)': Math.round(g.metros * 1000) / 1000,
+    'ANCHO TELA MAX': g.anchoMax,
+    'ORDENES': [...g.ordenes].join(', ')
+  }));
+  const ws = XLSX.utils.json_to_sheet(filas);
+  ws['!cols'] = [{ wch: 10 }, { wch: 38 }, { wch: 8 }, { wch: 18 }, { wch: 15 }, { wch: 60 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'RQT A PEDIR');
+  const hoy = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `RQT_A_PEDIR_${hoy}.xlsx`);
+});
+
+document.getElementById('rqt-copiar').addEventListener('click', async () => {
+  if (!rqtFaltantes.length) { showToast('No hay ítems por pedir.', 'info'); return; }
+  const texto = ['ITEM\tTELA\tCORTES\tMETROS']
+    .concat(rqtFaltantes.map(g => `${g.item}\t${g.tela}\t${g.cortes}\t${g.metros.toFixed(2)}`))
+    .join('\n');
+  try {
+    await navigator.clipboard.writeText(texto);
+    showToast('Lista copiada. Puedes pegarla en Excel o en un correo.', 'ok');
+  } catch (err) {
+    showToast('No se pudo copiar.', 'error');
+  }
+});
+
+rqtPintarEstadoSuper();
 
 checkSession();
 </script>
