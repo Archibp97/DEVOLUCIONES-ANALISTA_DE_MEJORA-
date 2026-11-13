@@ -465,6 +465,22 @@
   .rqt-resumen strong{font-family:'IBM Plex Sans',sans-serif;}
   .rqt-acciones{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
   .rqt-ordenes{font-size:12.5px;color:var(--ink-soft);max-width:360px;}
+  .rqt-buscar-card{margin-top:18px;}
+  .rqt-buscar-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .rqt-buscar-row input{
+    flex:1;min-width:220px;padding:10px 12px;border:1px solid var(--line);
+    border-radius:4px;font-size:15px;background:var(--surface);color:var(--ink);
+  }
+  .rqt-buscar-row input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent);}
+  .rqt-busq-res{margin-top:14px;}
+  .rqt-busq-item{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    padding:10px 0;border-bottom:1px solid var(--line);font-size:14px;
+  }
+  .rqt-busq-item:last-child{border-bottom:none;}
+  .rqt-busq-item .rqt-busq-der{display:flex;align-items:center;gap:8px;}
+  .rqt-quitar{background:none;border:none;color:var(--ink-soft);font-size:18px;line-height:1;padding:0 4px;}
+  .rqt-quitar:hover{color:var(--danger);}
 
 </style>
 </head>
@@ -666,6 +682,16 @@
           <p class="rqt-status" id="rqt-super-status"></p>
           <button type="button" class="btn btn-small btn-ghost" id="rqt-super-reset" style="border:1px solid var(--accent);margin-top:10px;">Restablecer lista original</button>
         </div>
+      </div>
+
+      <div class="action-card rqt-buscar-card">
+        <h2>Buscar sin archivo</h2>
+        <p>Si no puedes cargar el Excel, escribe el número de item o el nombre de la tela. Puedes poner varios items separados por coma o espacio (ej. 20162, 20019, 21125).</p>
+        <div class="rqt-buscar-row">
+          <input type="text" id="rqt-buscar-input" placeholder="Item o nombre de tela…" autocomplete="off" />
+          <button type="button" class="btn" id="rqt-buscar-btn">Buscar</button>
+        </div>
+        <div class="rqt-busq-res" id="rqt-busq-res"></div>
       </div>
 
       <div id="rqt-resultado" style="display:none;">
@@ -1942,7 +1968,7 @@ document.getElementById('rqt-super-file').addEventListener('change', async (e) =
     try { localStorage.setItem(RQT_SUPER_KEY, JSON.stringify({ items, fecha: new Date().toISOString() })); } catch (err) {}
     rqtPintarEstadoSuper();
     showToast(`Supermercado actualizado: ${items.length} ítems.`, 'ok');
-    if (rqtUltimasFilas.length) rqtCalcular();
+    rqtCalcular();
   } catch (err) {
     console.error(err);
     showToast('No se pudo leer el archivo del supermercado.', 'error');
@@ -1955,7 +1981,7 @@ document.getElementById('rqt-super-reset').addEventListener('click', () => {
   try { localStorage.removeItem(RQT_SUPER_KEY); } catch (err) {}
   rqtPintarEstadoSuper();
   showToast('Se restableció la lista original del supermercado.', 'ok');
-  if (rqtUltimasFilas.length) rqtCalcular();
+  rqtCalcular();
 });
 
 // Plantilla de corte: busca la fila de encabezados que tenga "ID TELAS" (o "ID TELA")
@@ -2023,7 +2049,16 @@ function rqtCalcular(){
     if (f.ancho > g.anchoMax) g.anchoMax = f.ancho;
     if (f.orden) g.ordenes.add(f.orden);
   });
+  Object.values(rqtManuales).forEach(m => {
+    if (superSet.has(m.item)) return;
+    if (!grupos[m.item]) grupos[m.item] = { item: m.item, tela: m.tela, cortes: 0, metros: 0, anchoMax: 0, ordenes: new Set(), manual: true };
+  });
   rqtFaltantes = Object.values(grupos).sort((a, b) => b.metros - a.metros);
+
+  if (!rqtUltimasFilas.length && !rqtFaltantes.length) {
+    document.getElementById('rqt-resultado').style.display = 'none';
+    return;
+  }
 
   const fmt = (n) => n.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const resumen = document.getElementById('rqt-resumen');
@@ -2038,16 +2073,18 @@ function rqtCalcular(){
 
   const totalCortes = rqtFaltantes.reduce((s, g) => s + g.cortes, 0);
   resumen.className = 'rqt-resumen';
-  resumen.innerHTML = `<strong>${rqtFaltantes.length} ${rqtFaltantes.length === 1 ? 'tela' : 'telas'} por pedir</strong> (${totalCortes} cortes).`;
+  resumen.innerHTML = `<strong>${rqtFaltantes.length} ${rqtFaltantes.length === 1 ? 'tela' : 'telas'} por pedir</strong>${totalCortes ? ` (${totalCortes} cortes)` : ''}.`;
 
   document.getElementById('rqt-tbody').innerHTML = rqtFaltantes.map(g => `
     <tr>
       <td><strong>${escapeHtml(g.item)}</strong></td>
       <td>${escapeHtml(g.tela)}</td>
-      <td>${g.cortes}</td>
-      <td>${fmt(g.metros)} m</td>
+      <td>${g.cortes || '—'}</td>
+      <td>${g.metros ? fmt(g.metros) + ' m' : '—'}</td>
       <td>${g.anchoMax ? fmt(g.anchoMax) + ' m' : '—'}</td>
-      <td class="rqt-ordenes">${escapeHtml([...g.ordenes].join(', ')) || '—'}</td>
+      <td class="rqt-ordenes">${g.manual
+        ? `Agregado manualmente <button type="button" class="rqt-quitar" data-rqt-quitar="${escapeHtml(g.item)}" title="Quitar">&times;</button>`
+        : (escapeHtml([...g.ordenes].join(', ')) || '—')}</td>
     </tr>`).join('');
 }
 
@@ -2059,7 +2096,7 @@ document.getElementById('rqt-export').addEventListener('click', () => {
     'CORTES': g.cortes,
     'METROS (ALTO TELA)': Math.round(g.metros * 1000) / 1000,
     'ANCHO TELA MAX': g.anchoMax,
-    'ORDENES': [...g.ordenes].join(', ')
+    'ORDENES': g.manual ? 'MANUAL' : [...g.ordenes].join(', ')
   }));
   const ws = XLSX.utils.json_to_sheet(filas);
   ws['!cols'] = [{ wch: 10 }, { wch: 38 }, { wch: 8 }, { wch: 18 }, { wch: 15 }, { wch: 60 }];
@@ -2080,6 +2117,91 @@ document.getElementById('rqt-copiar').addEventListener('click', async () => {
   } catch (err) {
     showToast('No se pudo copiar.', 'error');
   }
+});
+
+
+/* ---------- RQT: búsqueda manual (sin archivo) ---------- */
+let rqtManuales = {};
+
+function rqtNormTexto(v){
+  return String(v == null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().replace(/\s+/g, ' ').trim();
+}
+
+function rqtNombreTela(item){
+  const s = rqtGetSupermercado().items.find(x => rqtNormItem(x.item) === item);
+  if (s && s.tela) return s.tela;
+  const c = (catalogo || []).find(x => rqtNormItem(x.item) === item);
+  return c ? c.tela : '';
+}
+
+function rqtBuscar(){
+  const q = document.getElementById('rqt-buscar-input').value.trim();
+  const cont = document.getElementById('rqt-busq-res');
+  if (!q) { cont.innerHTML = ''; return; }
+
+  const superItems = rqtGetSupermercado().items;
+  const superSet = new Set(superItems.map(x => rqtNormItem(x.item)));
+  const resultados = {};
+
+  const partes = q.split(/[,;\n\s]+/).filter(Boolean);
+  if (partes.every(p => /^\d+$/.test(p))) {
+    // uno o varios números de item
+    partes.forEach(item => { resultados[item] = rqtNombreTela(item); });
+  } else {
+    // nombre de tela: busca en el supermercado y en el catálogo
+    const nq = rqtNormTexto(q);
+    superItems.forEach(x => { if (rqtNormTexto(x.tela).includes(nq)) resultados[rqtNormItem(x.item)] = x.tela; });
+    (catalogo || []).forEach(x => {
+      const it = rqtNormItem(x.item);
+      if (rqtNormTexto(x.tela).includes(nq) && !resultados[it]) resultados[it] = x.tela;
+    });
+  }
+
+  const lista = Object.entries(resultados).slice(0, 30);
+  if (!lista.length) {
+    cont.innerHTML = `<p class="helper-text" style="margin:0;">No encontré "${escapeHtml(q)}". Si es un número de item, escríbelo solo con números.</p>`;
+    return;
+  }
+
+  cont.innerHTML = lista.map(([item, tela]) => {
+    const enSuper = superSet.has(item);
+    const agregado = !!rqtManuales[item];
+    return `
+      <div class="rqt-busq-item">
+        <div><strong>Item ${escapeHtml(item)}</strong> · ${tela ? escapeHtml(tela) : '<span class="h-muted">sin nombre en el catálogo</span>'}</div>
+        <div class="rqt-busq-der">
+          ${enSuper
+            ? '<span class="status-pill status-ejecutado">Está en el supermercado</span>'
+            : `<span class="status-pill status-pendiente">No está · por pedir</span>
+               <button type="button" class="btn btn-small" data-rqt-agregar="${escapeHtml(item)}" data-tela="${escapeHtml(tela)}" ${agregado ? 'disabled' : ''}>${agregado ? 'Agregado' : 'Agregar a RQT'}</button>`}
+        </div>
+      </div>`;
+  }).join('') + (Object.keys(resultados).length > 30 ? '<p class="helper-text" style="margin:8px 0 0;">Hay más resultados; escribe un nombre más específico.</p>' : '');
+}
+
+document.getElementById('rqt-buscar-btn').addEventListener('click', rqtBuscar);
+document.getElementById('rqt-buscar-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') rqtBuscar();
+});
+
+document.getElementById('rqt-busq-res').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-rqt-agregar]');
+  if (!btn) return;
+  const item = btn.dataset.rqtAgregar;
+  rqtManuales[item] = { item, tela: btn.dataset.tela || '' };
+  btn.disabled = true;
+  btn.textContent = 'Agregado';
+  rqtCalcular();
+  showToast(`Item ${item} agregado a RQT a pedir.`, 'ok');
+});
+
+document.getElementById('rqt-tbody').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-rqt-quitar]');
+  if (!btn) return;
+  delete rqtManuales[btn.dataset.rqtQuitar];
+  rqtCalcular();
+  rqtBuscar();
 });
 
 rqtPintarEstadoSuper();
