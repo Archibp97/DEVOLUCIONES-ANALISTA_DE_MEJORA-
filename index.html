@@ -466,6 +466,13 @@
   .rqt-acciones{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
   .rqt-ordenes{font-size:12.5px;color:var(--ink-soft);max-width:360px;}
   .rqt-buscar-card{margin-top:18px;}
+  .rqt-drop{
+    margin-top:12px;padding:18px 14px;border:2px dashed var(--line);border-radius:7px;
+    text-align:center;font-size:13.5px;color:var(--ink-soft);background:#FAFBFC;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .rqt-drop strong{color:var(--ink);}
+  .rqt-drop.activo{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);}
   .rqt-buscar-row{display:flex;gap:8px;flex-wrap:wrap;}
   .rqt-buscar-row input{
     flex:1;min-width:220px;padding:10px 12px;border:1px solid var(--line);
@@ -671,14 +678,16 @@
       <div class="action-grid">
         <div class="action-card">
           <h2>1. Plantilla de corte de tela</h2>
-          <p>Selecciona uno o varios archivos de Excel de corte de tela.</p>
-          <input type="file" id="rqt-corte-file" class="rqt-file" accept=".xlsx,.xls,.xlsm" multiple />
+          <p>Arrastra el archivo directamente desde las descargas del navegador, o selecciónalo.</p>
+          <div class="rqt-drop" id="rqt-corte-drop"><strong>Suelta aquí el Excel de corte de tela</strong><br>(puedes soltar varios a la vez)</div>
+          <input type="file" id="rqt-corte-file" class="rqt-file" accept=".xlsx,.xls,.xlsm" multiple style="margin-top:12px;" />
           <p class="rqt-status" id="rqt-corte-status">Ningún archivo cargado.</p>
         </div>
         <div class="action-card">
           <h2>2. Lista del supermercado</h2>
           <p>Ya viene cargada. Si el supermercado cambia, sube el Excel nuevo (se leen las hojas que tengan la columna ITEM).</p>
-          <input type="file" id="rqt-super-file" class="rqt-file" accept=".xlsx,.xls,.xlsm" />
+          <div class="rqt-drop" id="rqt-super-drop"><strong>Suelta aquí el Excel del supermercado</strong></div>
+          <input type="file" id="rqt-super-file" class="rqt-file" accept=".xlsx,.xls,.xlsm" style="margin-top:12px;" />
           <p class="rqt-status" id="rqt-super-status"></p>
           <button type="button" class="btn btn-small btn-ghost" id="rqt-super-reset" style="border:1px solid var(--accent);margin-top:10px;">Restablecer lista original</button>
         </div>
@@ -1938,8 +1947,7 @@ async function rqtLeerLibro(file){
 }
 
 // Supermercado: toma todas las hojas con encabezado ITEM (columnas ITEM, ANCHOS, TELA)
-document.getElementById('rqt-super-file').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
+async function rqtProcesarSuper(file){
   if (!file) return;
   try {
     const wb = await rqtLeerLibro(file);
@@ -1972,9 +1980,13 @@ document.getElementById('rqt-super-file').addEventListener('change', async (e) =
   } catch (err) {
     console.error(err);
     showToast('No se pudo leer el archivo del supermercado.', 'error');
-  } finally {
-    e.target.value = '';
   }
+}
+
+document.getElementById('rqt-super-file').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  rqtProcesarSuper(file);
 });
 
 document.getElementById('rqt-super-reset').addEventListener('click', () => {
@@ -1987,8 +1999,7 @@ document.getElementById('rqt-super-reset').addEventListener('click', () => {
 // Plantilla de corte: busca la fila de encabezados que tenga "ID TELAS" (o "ID TELA")
 let rqtUltimasFilas = [];
 
-document.getElementById('rqt-corte-file').addEventListener('change', async (e) => {
-  const files = Array.from(e.target.files || []);
+async function rqtProcesarCorte(files){
   if (!files.length) return;
   const filas = [];
   let sinColumna = [];
@@ -2031,8 +2042,50 @@ document.getElementById('rqt-corte-file').addEventListener('change', async (e) =
   document.getElementById('rqt-corte-status').textContent =
     `${files.length} archivo(s) · ${filas.length} cortes leídos.` +
     (sinColumna.length ? ` Sin columna ID TELAS: ${sinColumna.join(', ')}.` : '');
-  e.target.value = '';
   rqtCalcular();
+  showToast(`${files.length} archivo(s) cargado(s).`, 'ok');
+}
+
+document.getElementById('rqt-corte-file').addEventListener('change', (e) => {
+  const files = Array.from(e.target.files || []);
+  e.target.value = '';
+  rqtProcesarCorte(files);
+});
+
+/* ---------- Arrastrar y soltar archivos (desde descargas del navegador) ---------- */
+function rqtSoloExcel(fileList){
+  return Array.from(fileList || []).filter(f => /\.(xlsx|xlsm|xls)$/i.test(f.name));
+}
+
+function rqtActivarDrop(zonaId, alSoltar){
+  const zona = document.getElementById(zonaId);
+  let contador = 0;
+  zona.addEventListener('dragenter', (e) => { e.preventDefault(); contador++; zona.classList.add('activo'); });
+  zona.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+  zona.addEventListener('dragleave', () => { contador = Math.max(0, contador - 1); if (!contador) zona.classList.remove('activo'); });
+  zona.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    contador = 0;
+    zona.classList.remove('activo');
+    const files = rqtSoloExcel(e.dataTransfer.files);
+    if (!files.length) { showToast('Suelta un archivo de Excel (.xlsx).', 'error'); return; }
+    alSoltar(files);
+  });
+}
+
+rqtActivarDrop('rqt-corte-drop', (files) => rqtProcesarCorte(files));
+rqtActivarDrop('rqt-super-drop', (files) => rqtProcesarSuper(files[0]));
+
+// Si sueltan el archivo en cualquier otra parte de la pestaña RQT, se toma como plantilla de corte.
+// En el resto de la página se evita que el navegador abra el archivo.
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => {
+  e.preventDefault();
+  const panel = document.getElementById('panel-rqt');
+  if (!panel.classList.contains('active')) return;
+  const files = rqtSoloExcel(e.dataTransfer && e.dataTransfer.files);
+  if (files.length) rqtProcesarCorte(files);
 });
 
 function rqtCalcular(){
