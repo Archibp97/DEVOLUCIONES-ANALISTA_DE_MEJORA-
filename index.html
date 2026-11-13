@@ -465,21 +465,15 @@
   .rqt-resumen strong{font-family:'IBM Plex Sans',sans-serif;}
   .rqt-acciones{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
   .rqt-ordenes{font-size:12.5px;color:var(--ink-soft);max-width:360px;}
-  .rqt-buscar-card{margin-top:18px;}
-  .rqt-drop{
-    margin-top:12px;padding:18px 14px;border:2px dashed var(--line);border-radius:7px;
-    text-align:center;font-size:13.5px;color:var(--ink-soft);background:#FAFBFC;
-    transition:border-color .15s ease, background .15s ease;
-  }
-  .rqt-drop strong{color:var(--ink);}
-  .rqt-drop.activo{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);}
-  .rqt-buscar-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .rqt-buscar-card{max-width:560px;margin-bottom:18px;}
+  .rqt-buscar-row{display:flex;gap:6px;}
   .rqt-buscar-row input{
-    flex:1;min-width:220px;padding:10px 12px;border:1px solid var(--line);
-    border-radius:4px;font-size:15px;background:var(--surface);color:var(--ink);
+    flex:1;min-width:0;padding:7px 10px;border:1px solid var(--line);
+    border-radius:4px;font-size:13.5px;background:var(--surface);color:var(--ink);
   }
   .rqt-buscar-row input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent);}
-  .rqt-busq-res{margin-top:14px;}
+  .rqt-busq-res{margin-top:8px;}
+  .rqt-busq-res:not(:empty){background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:4px 14px;}
   .rqt-busq-item{
     display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
     padding:10px 0;border-bottom:1px solid var(--line);font-size:14px;
@@ -675,6 +669,14 @@
       </div>
       <p class="helper-text">Carga la plantilla de corte de tela y aquí verás las telas (columna ID TELAS) que <strong>no</strong> están en el supermercado de alta rotación.</p>
 
+      <div class="rqt-buscar-card">
+        <div class="rqt-buscar-row">
+          <input type="text" id="rqt-buscar-input" placeholder="Buscar item o tela sin archivo (ej. 20162, 20019)" autocomplete="off" />
+          <button type="button" class="btn btn-small" id="rqt-buscar-btn">Buscar</button>
+        </div>
+        <div class="rqt-busq-res" id="rqt-busq-res"></div>
+      </div>
+
       <div class="action-grid">
         <div class="action-card">
           <h2>1. Plantilla de corte de tela</h2>
@@ -691,16 +693,6 @@
           <p class="rqt-status" id="rqt-super-status"></p>
           <button type="button" class="btn btn-small btn-ghost" id="rqt-super-reset" style="border:1px solid var(--accent);margin-top:10px;">Restablecer lista original</button>
         </div>
-      </div>
-
-      <div class="action-card rqt-buscar-card">
-        <h2>Buscar sin archivo</h2>
-        <p>Si no puedes cargar el Excel, escribe el número de item o el nombre de la tela. Puedes poner varios items separados por coma o espacio (ej. 20162, 20019, 21125).</p>
-        <div class="rqt-buscar-row">
-          <input type="text" id="rqt-buscar-input" placeholder="Item o nombre de tela…" autocomplete="off" />
-          <button type="button" class="btn" id="rqt-buscar-btn">Buscar</button>
-        </div>
-        <div class="rqt-busq-res" id="rqt-busq-res"></div>
       </div>
 
       <div id="rqt-resultado" style="display:none;">
